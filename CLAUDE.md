@@ -2,9 +2,10 @@
 
 `glab-docs` auto-generates Markdown docs for **GitLab CI/CD components and pipelines** — the
 GitLab analogue of [helm-docs](https://github.com/norwoodj/helm-docs) for Helm charts. It is a
-hard fork of `norwoodj/helm-docs` (GPL-3.0): the gotemplate engine, the sprig funcmap, the
-`# --` comment parser and the ignore-file handling are inherited; everything chart-specific was
-replaced. See [README.md](README.md) for user-facing docs.
+hard fork of `norwoodj/helm-docs` (GPL-3.0): the gotemplate engine, the sprig funcmap and the
+`# --` comment parser are inherited; the ignore-file handling was reimplemented to drop the
+helm dependency; everything chart-specific was replaced. See [README.md](README.md) for
+user-facing docs.
 
 ## What it reads
 
@@ -45,8 +46,9 @@ annotations still work and override the native fields.
   - `generate.go` — `PrintDocumentation`: render + `applyMarkDownFormat`, write `README.md`
     into the **source file's own directory**.
   - `files.go` / `util.go` — inherited `.Files` helper + sort constants.
-- `pkg/util/` — `FuncMap` (sprig + toYaml/fromYaml), `git.go`, `ignore.go` (helm's gitignore
-  parser, the one remaining `helm.sh/helm/v3` import — kept deliberately).
+- `pkg/util/` — `FuncMap` (sprig + toYaml/fromYaml), `git.go`, `ignore.go` +
+  `gitignore.go` (a ~130-line dependency-free port of `helm.sh/helm/v3/pkg/ignore`, so the
+  whole helm dependency tree is gone; `filepath.Match` semantics, `**` rejected).
 - `example-components/` — fixtures with committed generated `README.md`s. `plain-pipeline/`
   exercises `variables:` + `include:`; `build-image/templates/` exercises `spec:inputs`.
 - `templates/glab-docs.yml` — the published GitLab CI/CD component that runs the
