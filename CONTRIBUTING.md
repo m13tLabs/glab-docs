@@ -25,9 +25,8 @@ The `example-components/` fixtures carry committed `README.md` files. If your ch
 rendering, regenerate them and commit the result:
 
 ```bash
-go run ./cmd/glab-docs --search-root example-components \
-  --component-prefix gitlab.com/m13tlabs/glab-docs
-git diff example-components
+go run ./cmd/glab-docs --search-root . --component-prefix gitlab.com/m13tlabs/glab-docs
+git diff example-components templates
 ```
 
 ### GitHub Actions

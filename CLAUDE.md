@@ -27,8 +27,10 @@ annotations still work and override the native fields.
   `main.go` = walk → parse (parallel) → render.
 - `pkg/gitlab/` — parsing (was `pkg/helm`).
   - `component_finder.go` — `FindComponentFiles`: walk + glob match. Patterns are matched
-    against **every trailing path segment** of a file, so `templates/*.yml` matches
-    `any/dir/templates/foo.yml`. `DefaultSearchPatterns` lives here.
+    against **every trailing path segment** of a file (and the search-root's own base name is
+    prepended first), so `templates/*.yml` matches both `any/dir/templates/foo.yml` and
+    `foo.yml` when `--search-root` points straight at a `templates/` dir. `DefaultSearchPatterns`
+    lives here.
   - `component_info.go` — `ParseComponentInformation`: multi-doc YAML decode, locate the `spec:`
     doc and the body doc, pull `spec.inputs` / `variables` / `include` nodes, scan the raw file
     for old-style `# key --` comments, strict-mode lint.
@@ -47,6 +49,12 @@ annotations still work and override the native fields.
   parser, the one remaining `helm.sh/helm/v3` import — kept deliberately).
 - `example-components/` — fixtures with committed generated `README.md`s. `plain-pipeline/`
   exercises `variables:` + `include:`; `build-image/templates/` exercises `spec:inputs`.
+- `templates/glab-docs.yml` — the published GitLab CI/CD component that runs the
+  `m13tlabs/glab-docs` image (`check` = `git diff --exit-code` the regenerated docs; `generate`
+  = just write). `templates/README.md` is its own generated doc. `.gitlab-ci.yml` is the
+  integration pipeline that includes the component `@$CI_COMMIT_SHA` against
+  `example-components/` and `templates/`. The repo's own `.gitlab-ci.yml` is in
+  `.glabdocsignore` so glab-docs never documents it.
 
 ## Design notes / gotchas
 
@@ -81,10 +89,9 @@ annotations still work and override the native fields.
 ```sh
 go vet ./... && go test ./...
 
-# end-to-end against the fixtures; regenerate + diff their committed READMEs
-go run ./cmd/glab-docs --search-root example-components \
-  --component-prefix gitlab.com/m13tlabs/glab-docs
-git diff example-components
+# end-to-end; regenerate every committed README under example-components/ and templates/
+go run ./cmd/glab-docs --search-root . --component-prefix gitlab.com/m13tlabs/glab-docs
+git diff example-components templates
 
 goreleaser check                       # config sanity (warns on deprecated dockers — ok)
 goreleaser release --snapshot --clean --skip=publish,sign   # full build incl. docker
