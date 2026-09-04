@@ -5,7 +5,7 @@ spec:
       default: test
       description: Pipeline stage the generated job runs in.
     image:
-      default: m13tlabs/glab-docs
+      default: m13t/glab-docs
       description: glab-docs container image, without the tag.
     version:
       default: latest
