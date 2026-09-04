@@ -53,8 +53,21 @@ type componentTemplateData struct {
 	InputSections     sections
 	Variables         []variableRow
 	IncludeItems      []gitlab.IncludeItem
+	JobRows           []jobRow
 	Files             files
 	SkipVersionFooter bool
+}
+
+// jobRow is one row of the pipeline's Jobs table.
+type jobRow struct {
+	Name        string
+	Stage       string
+	When        string
+	Needs       []string
+	Extends     []string
+	Image       string
+	Description string
+	Hidden      bool
 }
 
 func resolveSortOrder() string {
@@ -148,7 +161,28 @@ func getComponentTemplateData(info gitlab.ComponentDocumentationInfo, glabDocsVe
 		InputSections:              groupInputSections(inputRows),
 		Variables:                  variableRows,
 		IncludeItems:               info.Includes,
+		JobRows:                    getJobRows(info.Jobs),
 		Files:                      componentFiles,
 		SkipVersionFooter:          skipVersionFooter,
 	}, nil
+}
+
+func getJobRows(jobs []gitlab.Job) []jobRow {
+	rows := make([]jobRow, 0, len(jobs))
+	for _, j := range jobs {
+		if j.Hidden {
+			continue // `.hidden` jobs are templates/anchors, not part of the pipeline
+		}
+		rows = append(rows, jobRow{
+			Name:        j.Name,
+			Stage:       j.Stage,
+			When:        j.When,
+			Needs:       j.Needs,
+			Extends:     j.Extends,
+			Image:       j.Image,
+			Description: j.Description,
+			Hidden:      j.Hidden,
+		})
+	}
+	return rows
 }

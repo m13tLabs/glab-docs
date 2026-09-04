@@ -22,6 +22,8 @@ const defaultDocumentationTemplate = `{{ template "pipeline.header" . }}
 
 {{ template "pipeline.variablesSection" . }}
 
+{{ template "pipeline.jobsSection" . }}
+
 {{ template "pipeline.includesSection" . }}
 
 {{- if not .SkipVersionFooter }}
@@ -141,6 +143,29 @@ func getVariablesTemplate() string {
 	return b.String()
 }
 
+func getJobsTemplate() string {
+	b := strings.Builder{}
+	b.WriteString(`{{ define "pipeline.jobsHeader" }}## Jobs{{ end }}`)
+
+	b.WriteString(`{{ define "pipeline.jobsTable" }}`)
+	b.WriteString("| Job | Stage | When | Needs | Description |\n|-----|-------|------|-------|-------------|")
+	b.WriteString("  {{- range .JobRows }}")
+	b.WriteString("\n| `{{ .Name }}` | {{ if .Stage }}`{{ .Stage }}`{{ else }}`test`{{ end }} | {{ if .When }}`{{ .When }}`{{ end }} " +
+		"| {{ range $i, $n := .Needs }}{{ if $i }}, {{ end }}`{{ $n }}`{{ end }} | {{ .Description }}{{ if .Extends }}{{ if .Description }}<br>{{ end }}Extends: {{ range $i, $e := .Extends }}{{ if $i }}, {{ end }}`{{ $e }}`{{ end }}{{ end }} |")
+	b.WriteString("  {{- end }}")
+	b.WriteString("{{ end }}")
+
+	b.WriteString(`{{ define "pipeline.jobsSection" }}`)
+	b.WriteString("{{ if .JobRows }}")
+	b.WriteString(`{{ template "pipeline.jobsHeader" . }}`)
+	b.WriteString("\n\n")
+	b.WriteString(`{{ template "pipeline.jobsTable" . }}`)
+	b.WriteString("{{ end }}")
+	b.WriteString("{{ end }}")
+
+	return b.String()
+}
+
 func getIncludesTemplate() string {
 	b := strings.Builder{}
 	b.WriteString(`{{ define "pipeline.includesHeader" }}## Includes{{ end }}`)
@@ -229,6 +254,7 @@ func getDocumentationTemplates(componentDirectory string, componentSearchRoot st
 		getUsageTemplate(),
 		getInputsTemplate(),
 		getVariablesTemplate(),
+		getJobsTemplate(),
 		getIncludesTemplate(),
 		getVersionFooterTemplate(),
 		documentationTemplate,

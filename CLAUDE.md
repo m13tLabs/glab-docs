@@ -17,6 +17,10 @@ For every YAML file matched by `--search-pattern` under `--search-root` it parse
 - the pipeline's top-level `variables:` block (scalar, or the `{value, description, options}`
   extended form).
 - the top-level `include:` list (component / local / project / remote / template).
+- every top-level key that isn't a reserved keyword (`reservedTopLevelKeys`) → a **job**, with
+  `stage` / `when` (or `rules`/`only`/`except`) / `needs` / `extends` / `image` / a `# --`
+  description. Ordered by `stages:` (or GitLab's implicit order); hidden `.jobs` are parsed but
+  excluded from the rendered table (`getJobRows`).
 - a leading `# --` file comment → the component description.
 
 `# --` / `# <name> --` / `# @section` / `# @default` / `# (type)` / `# @ignore` comment
@@ -33,13 +37,15 @@ annotations still work and override the native fields.
     `foo.yml` when `--search-root` points straight at a `templates/` dir. `DefaultSearchPatterns`
     lives here.
   - `component_info.go` — `ParseComponentInformation`: multi-doc YAML decode, locate the `spec:`
-    doc and the body doc, pull `spec.inputs` / `variables` / `include` nodes, scan the raw file
-    for old-style `# key --` comments, strict-mode lint.
+    doc and the body doc (`docLooksLikeBody`), pull `spec.inputs` / `variables` / `include` /
+    `stages` nodes, `parseJobs` over the body's top-level keys, scan the raw file for old-style
+    `# key --` comments, strict-mode lint (inputs, then variables, then jobs — stops at the
+    first failing category).
   - `comment.go` — the inherited `ParseComment` (`# --` blocks). **Panics on an empty slice**
     (`commentLines[docStartIdx+1:]`), so every caller guards `len(commentLines) > 0`.
 - `pkg/document/` — model + render.
-  - `model.go` — `inputRow`, `variableRow`, `componentTemplateData`, sorting, `@section`
-    grouping (`groupInputSections`), `getComponentTemplateData`.
+  - `model.go` — `inputRow`, `variableRow`, `jobRow`, `componentTemplateData`, sorting,
+    `@section` grouping (`groupInputSections`), `getComponentTemplateData` / `getJobRows`.
   - `inputs.go` / `variables.go` — build rows from the YAML nodes; `renderNodeValue`
     backtick-wraps scalars and JSON-encodes seq/map; `commentOverride` layers `# --` on top.
   - `template.go` — built-in `pipeline.*` templates (see README table) + `defaultDocumentationTemplate`.
@@ -50,13 +56,16 @@ annotations still work and override the native fields.
   `gitignore.go` (a ~130-line dependency-free port of `helm.sh/helm/v3/pkg/ignore`, so the
   whole helm dependency tree is gone; `filepath.Match` semantics, `**` rejected).
 - `example-components/` — fixtures with committed generated `README.md`s. `plain-pipeline/`
-  exercises `variables:` + `include:`; `build-image/templates/` exercises `spec:inputs`.
+  exercises `variables:` + `include:` + a couple of simple jobs; `build-image/templates/`
+  exercises `spec:inputs`. Richer job cases (`needs` as maps, `extends`, `when: manual`, hidden
+  `.jobs`) live in `pkg/gitlab/test-fixtures/jobs/`. **Keep the fixtures minimal — no fictional
+  deploy/dind jobs.**
 - `templates/glab-docs.yml` — the published GitLab CI/CD component that runs the
   `m13tlabs/glab-docs` image (`check` = `git diff --exit-code` the regenerated docs; `generate`
   = just write). `templates/README.md` is its own generated doc. `.gitlab-ci.yml` is the
-  integration pipeline that includes the component `@$CI_COMMIT_SHA` against
-  `example-components/` and `templates/`. The repo's own `.gitlab-ci.yml` is in
-  `.glabdocsignore` so glab-docs never documents it.
+  integration pipeline whose **only job is to run the glab-docs component** against
+  `example-components/` and `templates/` — do not add real build/deploy stages to it. The
+  repo's own `.gitlab-ci.yml` is in `.glabdocsignore` so glab-docs never documents it.
 
 ## Design notes / gotchas
 

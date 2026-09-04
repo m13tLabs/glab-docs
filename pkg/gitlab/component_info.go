@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -45,6 +46,28 @@ type IncludeItem struct {
 	Ref string
 }
 
+// Job is a single job defined in a pipeline body.
+type Job struct {
+	Name         string
+	Description  string
+	Stage        string
+	When         string   // explicit `when:`, or "rules" / "only/except" when those gate the job
+	Needs        []string // upstream job names from `needs:`
+	Extends      []string // templates pulled in via `extends:`
+	Image        string
+	AllowFailure bool
+	Hidden       bool // name starts with "." - a template/anchor job, not scheduled
+	LineNumber   int
+}
+
+// reservedTopLevelKeys are the global keywords that can appear at the top level of a pipeline
+// body but are not jobs. https://docs.gitlab.com/ee/ci/yaml/#keywords
+var reservedTopLevelKeys = map[string]bool{
+	"stages": true, "variables": true, "include": true, "default": true,
+	"workflow": true, "image": true, "services": true, "cache": true,
+	"before_script": true, "after_script": true, "spec": true, "sast": true,
+}
+
 // ComponentDocumentationInfo is everything parsed from a single GitLab CI YAML file that the
 // templates need in order to render its README.
 type ComponentDocumentationInfo struct {
@@ -58,6 +81,8 @@ type ComponentDocumentationInfo struct {
 	Variables            *yaml.Node
 	VariableDescriptions map[string]ValueDescription
 	Includes             []IncludeItem
+	Jobs                 []Job
+	Stages               []string // declared `stages:` order, if any
 }
 
 // DocumentationParsingConfig controls strict-mode linting of undocumented inputs/variables.
@@ -175,6 +200,189 @@ func parseIncludes(includeNode *yaml.Node) []IncludeItem {
 		}
 	}
 	return includes
+}
+
+// scalarOrNameList flattens a node that is a scalar, a sequence of scalars, or a sequence of
+// mappings with a `job:`/`name:` key (as GitLab's `needs:` allows) into a list of strings.
+func scalarOrNameList(node *yaml.Node) []string {
+	if node == nil {
+		return nil
+	}
+	switch node.Kind {
+	case yaml.ScalarNode:
+		if node.Value == "" {
+			return nil
+		}
+		return []string{node.Value}
+	case yaml.SequenceNode:
+		out := make([]string, 0, len(node.Content))
+		for _, item := range node.Content {
+			switch item.Kind {
+			case yaml.ScalarNode:
+				out = append(out, item.Value)
+			case yaml.MappingNode:
+				if v := findMapValue(item, "job"); v != nil {
+					out = append(out, v.Value)
+				} else if v := findMapValue(item, "name"); v != nil {
+					out = append(out, v.Value)
+				}
+			}
+		}
+		return out
+	}
+	return nil
+}
+
+func imageName(node *yaml.Node) string {
+	if node == nil {
+		return ""
+	}
+	if node.Kind == yaml.ScalarNode {
+		return node.Value
+	}
+	if v := findMapValue(node, "name"); v != nil {
+		return v.Value
+	}
+	return ""
+}
+
+func parseStages(stagesNode *yaml.Node) []string {
+	if stagesNode == nil || stagesNode.Kind != yaml.SequenceNode {
+		return nil
+	}
+	out := make([]string, 0, len(stagesNode.Content))
+	for _, s := range stagesNode.Content {
+		out = append(out, s.Value)
+	}
+	return out
+}
+
+// parseJobs walks the top-level keys of a pipeline body and returns one Job per non-reserved
+// mapping entry.
+func parseJobs(bodyRoot *yaml.Node, fileComments map[string]ValueDescription) []Job {
+	if bodyRoot != nil && bodyRoot.Kind == yaml.DocumentNode && len(bodyRoot.Content) > 0 {
+		bodyRoot = bodyRoot.Content[0]
+	}
+	if bodyRoot == nil || bodyRoot.Kind != yaml.MappingNode {
+		return nil
+	}
+
+	jobs := make([]Job, 0)
+	for i := 0; i+1 < len(bodyRoot.Content); i += 2 {
+		keyNode := bodyRoot.Content[i]
+		valueNode := bodyRoot.Content[i+1]
+		name := keyNode.Value
+
+		if reservedTopLevelKeys[name] || valueNode.Kind != yaml.MappingNode {
+			continue
+		}
+		if strings.Contains(keyNode.HeadComment, "@ignore") {
+			continue
+		}
+
+		job := Job{
+			Name:       name,
+			Hidden:     strings.HasPrefix(name, "."),
+			Stage:      "",
+			LineNumber: keyNode.Line,
+		}
+
+		if s := findMapValue(valueNode, "stage"); s != nil {
+			job.Stage = s.Value
+		}
+		if w := findMapValue(valueNode, "when"); w != nil {
+			job.When = w.Value
+		} else if findMapValue(valueNode, "rules") != nil {
+			job.When = "rules"
+		} else if findMapValue(valueNode, "only") != nil || findMapValue(valueNode, "except") != nil {
+			job.When = "only/except"
+		}
+		job.Needs = scalarOrNameList(findMapValue(valueNode, "needs"))
+		job.Extends = scalarOrNameList(findMapValue(valueNode, "extends"))
+		job.Image = imageName(findMapValue(valueNode, "image"))
+		if af := findMapValue(valueNode, "allow_failure"); af != nil {
+			job.AllowFailure = af.Value == "true"
+		}
+
+		if keyNode.HeadComment != "" && strings.Contains(keyNode.HeadComment, PrefixComment) {
+			if key, d := ParseComment(strings.Split(keyNode.HeadComment, "\n")); key == "" {
+				job.Description = d.Description
+			}
+		}
+		if job.Description == "" {
+			if d, ok := fileComments["jobs."+name]; ok {
+				job.Description = d.Description
+			} else if d, ok := fileComments[name]; ok {
+				job.Description = d.Description
+			}
+		}
+
+		jobs = append(jobs, job)
+	}
+	return jobs
+}
+
+// docLooksLikeBody reports whether a YAML document is the pipeline body (as opposed to the
+// `spec:` header) - it carries variables/include/stages/workflow or at least one job.
+func docLooksLikeBody(doc *yaml.Node) bool {
+	root := doc
+	if root != nil && root.Kind == yaml.DocumentNode && len(root.Content) > 0 {
+		root = root.Content[0]
+	}
+	if root == nil || root.Kind != yaml.MappingNode {
+		return false
+	}
+	for i := 0; i+1 < len(root.Content); i += 2 {
+		key := root.Content[i].Value
+		if key == "spec" {
+			continue
+		}
+		if key == "variables" || key == "include" || key == "stages" || key == "workflow" {
+			return true
+		}
+		if !reservedTopLevelKeys[key] && root.Content[i+1].Kind == yaml.MappingNode {
+			return true // a job
+		}
+	}
+	return false
+}
+
+func stageOrder(stages []string) map[string]int {
+	order := make(map[string]int, len(stages))
+	for i, s := range stages {
+		order[s] = i
+	}
+	return order
+}
+
+// sortJobsByStage orders jobs by the declared `stages:` sequence (falling back to GitLab's
+// implicit .pre / build / test / deploy / .post), then by declaration order.
+func sortJobsByStage(jobs []Job, stages []string) {
+	effective := stages
+	if len(effective) == 0 {
+		effective = []string{".pre", "build", "test", "deploy", ".post"}
+	}
+	order := stageOrder(effective)
+	rank := func(j Job) int {
+		if j.Hidden {
+			return -1 // templates/anchors first
+		}
+		s := j.Stage
+		if s == "" {
+			s = "test"
+		}
+		if r, ok := order[s]; ok {
+			return r
+		}
+		return len(order) + 1
+	}
+	sort.SliceStable(jobs, func(i, j int) bool {
+		ri, rj := rank(jobs[i]), rank(jobs[j])
+		if ri != rj {
+			return ri < rj
+		}
+		return jobs[i].LineNumber < jobs[j].LineNumber
+	})
 }
 
 func deriveComponentName(sourceFile string) string {
@@ -422,7 +630,7 @@ func ParseComponentInformation(sourceFile string, config DocumentationParsingCon
 		if findMapValue(doc, "spec") != nil {
 			specRoot = doc
 		}
-		if findMapValue(doc, "variables") != nil || findMapValue(doc, "include") != nil {
+		if docLooksLikeBody(doc) {
 			bodyRoot = doc
 		}
 	}
@@ -439,6 +647,7 @@ func ParseComponentInformation(sourceFile string, config DocumentationParsingCon
 	removeIgnored(info.Variables, yaml.MappingNode)
 
 	info.Includes = parseIncludes(findMapValue(bodyRoot, "include"))
+	info.Stages = parseStages(findMapValue(bodyRoot, "stages"))
 	info.Description = fileLeadingDescription(contents, docs)
 
 	fileComments, err := parseFileComments(sourceFile)
@@ -447,6 +656,8 @@ func ParseComponentInformation(sourceFile string, config DocumentationParsingCon
 	}
 	info.InputDescriptions = fileComments
 	info.VariableDescriptions = fileComments
+	info.Jobs = parseJobs(bodyRoot, fileComments)
+	sortJobsByStage(info.Jobs, info.Stages)
 
 	if config.StrictMode {
 		if err := checkDocumentation(
@@ -457,6 +668,21 @@ func ParseComponentInformation(sourceFile string, config DocumentationParsingCon
 		if err := checkDocumentation(
 			mappingKeyNames(info.Variables), fileComments, documentedNames(info.Variables), config, "variables",
 		); err != nil {
+			return info, err
+		}
+
+		jobNames := make([]string, 0, len(info.Jobs))
+		documentedJobs := make(map[string]bool, len(info.Jobs))
+		for _, j := range info.Jobs {
+			if j.Hidden {
+				continue
+			}
+			jobNames = append(jobNames, j.Name)
+			if j.Description != "" {
+				documentedJobs[j.Name] = true
+			}
+		}
+		if err := checkDocumentation(jobNames, fileComments, documentedJobs, config, "jobs"); err != nil {
 			return info, err
 		}
 	}

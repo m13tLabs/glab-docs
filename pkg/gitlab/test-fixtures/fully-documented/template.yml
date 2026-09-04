@@ -10,6 +10,7 @@ spec:
       default: true
       description: Whether to push the image after building.
 ---
+# -- Builds the image and optionally pushes it.
 "build image":
   stage: $[[ inputs.stage ]]
   script:

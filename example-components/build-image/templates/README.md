@@ -31,3 +31,9 @@ include:
 | stage | string | `build` |  | Pipeline stage the job runs in. |
 | tag | string | `latest` |  | Tag applied to the built image. Must be a valid Docker tag.<br>Pattern: `^[\w][\w.-]{0,127}$` |
 
+## Jobs
+
+| Job | Stage | When | Needs | Description |
+|-----|-------|------|-------|-------------|
+| `build-image` | `$[[ inputs.stage ]]` |  |  |  |
+

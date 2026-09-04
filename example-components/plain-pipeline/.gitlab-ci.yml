@@ -11,7 +11,6 @@ include:
 
 stages:
   - lint
-  - build
   - test
 
 variables:
@@ -24,3 +23,17 @@ variables:
       - staging
       - production
   FF_USE_FASTZIP: "true"
+
+# -- Runs golangci-lint over the module.
+lint:
+  stage: lint
+  image: $LINT_IMAGE
+  script:
+    - golangci-lint run ./...
+
+# -- Unit tests with coverage; publishes a JUnit report.
+unit-tests:
+  stage: test
+  needs: ["lint"]
+  script:
+    - go test -coverprofile=cover.out ./...

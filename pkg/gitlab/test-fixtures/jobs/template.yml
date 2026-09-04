@@ -1,0 +1,31 @@
+# -- A plain pipeline used to exercise job parsing.
+stages:
+  - build
+  - test
+  - deploy
+
+variables:
+  # -- Registry images are pushed to.
+  REGISTRY: $CI_REGISTRY_IMAGE
+
+.base:
+  image: alpine:3.24
+
+# -- Compiles the project.
+compile:
+  stage: build
+  script: [make]
+
+test:
+  stage: test
+  needs: ["compile"]
+  script: [make test]
+
+# -- Ships the build to production. Manual.
+ship:
+  extends: .base
+  stage: deploy
+  needs:
+    - job: test
+  when: manual
+  script: [make deploy]

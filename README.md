@@ -7,8 +7,8 @@ glab-docs
 
 `glab-docs` auto-generates Markdown documentation for **GitLab CI/CD components and pipelines**,
 the way [helm-docs](https://github.com/norwoodj/helm-docs) does for Helm charts. It reads a CI
-YAML file's `spec:inputs:` header, its top-level `variables:` block and its `include:` list and
-renders a `README.md` with tables for each.
+YAML file's `spec:inputs:` header, its top-level `variables:` block, its `include:` list and its
+jobs, and renders a `README.md` with a table for each.
 
 This project is a fork of `norwoodj/helm-docs` (GPL-3.0); the Go templating engine and comment
 parser are inherited from it.
@@ -96,7 +96,7 @@ The component name is the file stem, or the parent directory name for `template.
 `$CI_SERVER_FQDN/<path-to-project>/<name>@<version>` placeholder is used. The snippet is only
 emitted for files that declare `spec:inputs:`.
 
-## Documenting inputs and variables
+## Documenting inputs, variables and jobs
 
 `spec:inputs:` entries are documented from their native fields — `description`, `default`,
 `type` (`string` / `number` / `boolean` / `array`, otherwise inferred from the default),
@@ -104,6 +104,20 @@ emitted for files that declare `spec:inputs:`.
 
 `variables:` entries are documented from their value, or from the extended
 `{ value, description, options }` form.
+
+Every top-level key that isn't a reserved GitLab keyword is treated as a **job** and listed in
+a Jobs table with its `stage`, `when` (or `rules` / `only`/`except`), `needs`, `extends` and a
+`# --` description comment. Jobs are ordered by the pipeline's `stages:` (or GitLab's implicit
+order). Hidden jobs (`.name`) are skipped.
+
+```yaml
+stages: [test, deploy]
+
+# -- Runs the unit test suite with coverage.
+unit-tests:
+  stage: test
+  script: [go test ./...]
+```
 
 ### Comment annotations
 
@@ -141,13 +155,15 @@ Built-in sub-templates:
 | `pipeline.usageSection` | the `include:` usage snippet (components only) |
 | `pipeline.inputsSection` / `pipeline.inputsTable` | the inputs table (grouped by `@section` when used) |
 | `pipeline.variablesSection` / `pipeline.variablesTable` | the `variables:` table |
+| `pipeline.jobsSection` / `pipeline.jobsTable` | the Jobs table |
 | `pipeline.includesSection` / `pipeline.includesTable` | the `include:` table |
 | `glab-docs.versionFooter` | autogeneration footer (suppress with `--skip-version-footer`) |
 
 ## Strict mode
 
-`-x` fails generation when an input or variable has no description (native or comment). `-y`
-takes allowed-undocumented paths (`inputs.foo`, `variables.BAR`, or a bare name); `-z` takes
+`-x` fails generation when an input, variable or job has no description (native or comment).
+`-y` takes allowed-undocumented paths (`inputs.foo`, `variables.BAR`, `jobs.deploy`, or a bare
+name); `-z` takes
 regexps. Both are repeatable.
 
 ## GitLab CI/CD component

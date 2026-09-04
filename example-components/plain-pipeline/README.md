@@ -10,6 +10,13 @@ Reference pipeline wiring the shared templates together.
 | FF_USE_FASTZIP | `true` |  |  |
 | LINT_IMAGE | `registry.gitlab.com/m13tlabs/ci-images/lint:latest` |  | Container image used for lint jobs. |
 
+## Jobs
+
+| Job | Stage | When | Needs | Description |
+|-----|-------|------|-------|-------------|
+| `lint` | `lint` |  |  | Runs golangci-lint over the module. |
+| `unit-tests` | `test` |  | `lint` | Unit tests with coverage; publishes a JUnit report. |
+
 ## Includes
 
 | Type | Location | Ref |
