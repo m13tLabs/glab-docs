@@ -2,7 +2,7 @@ module github.com/m13tLabs/glab-docs
 
 go 1.22.0
 
-toolchain go1.22.12
+toolchain go1.27.1
 
 require (
 	github.com/Masterminds/sprig/v3 v3.2.3
