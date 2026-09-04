@@ -61,15 +61,27 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
 
+      - name: Determine release version
+        id: version
+        run: |
+          currentVersion=$(jq -r '.version' "config.json")
+
+          echo "Releasing version $currentVersion"
+          IFS='.' read -r relMajor relMinor _ <<< "$currentVersion"
+          {
+            echo "release_version=$currentVersion"
+            echo "release_version_minor=${relMajor}.${relMinor}"
+            echo "build_date=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Docker metadata
         id: meta
         uses: docker/metadata-action@c1e51972afc2121e065aed6d45c65596fe445f3f # v5.8.0
         with:
-          images: m13tlabs/glab-docs
+          images: m13t/glab-docs
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
+            type=raw,pattern=${{ steps.version.outputs.release_version }}
+            type=raw,pattern=${{ steps.version.outputs.release_version_minor }}
             type=raw,value=latest
 
       - name: Login to Docker Hub
@@ -84,10 +96,13 @@ jobs:
         with:
           context: .
           platforms: linux/amd64,linux/arm64
-          push: ${{ env.DOCKER_HUB_USER != '' }}
+          push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            VERSION=${{ steps.meta.outputs.version }}
+            APP_VERSION=${{ steps.version.outputs.release_version }}
+            BUILD_DATE=${{ steps.version.outputs.build_date }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          provenance: true
+          sbom: true
