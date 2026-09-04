@@ -1,0 +1,2 @@
+# Same syntax as .gitignore. Directories or files listed here are skipped when
+# searching for GitLab CI YAML files to document.

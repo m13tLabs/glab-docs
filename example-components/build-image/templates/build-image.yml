@@ -1,0 +1,51 @@
+# -- Builds a container image with Kaniko and pushes it to the project registry.
+spec:
+  inputs:
+    stage:
+      default: build
+      description: Pipeline stage the job runs in.
+    context:
+      default: .
+      description: Build context passed to the builder.
+    dockerfile:
+      default: Dockerfile
+      description: Path to the Dockerfile, relative to the context.
+    destination:
+      description: Fully-qualified image reference to push (registry/image:tag).
+    build_args:
+      type: array
+      default: []
+      description: Additional `--build-arg KEY=VALUE` entries.
+    push:
+      type: boolean
+      default: true
+      description: Push the image after a successful build.
+    log_level:
+      default: info
+      description: Builder log verbosity.
+      options:
+        - debug
+        - info
+        - warn
+        - error
+    # -- Tag applied to the built image. Must be a valid Docker tag.
+    tag:
+      default: latest
+      regex: '^[\w][\w.-]{0,127}$'
+---
+"build-image":
+  stage: $[[ inputs.stage ]]
+  image:
+    name: gcr.io/kaniko-project/executor:v1.23.2-debug
+    entrypoint: [""]
+  variables:
+    # -- Registry the built image is pushed to.
+    CI_REGISTRY_IMAGE: $CI_REGISTRY_IMAGE
+    # -- Kaniko cache repository.
+    KANIKO_CACHE_REPO: $CI_REGISTRY_IMAGE/cache
+  script:
+    - /kaniko/executor
+      --context "$[[ inputs.context ]]"
+      --dockerfile "$[[ inputs.dockerfile ]]"
+      --destination "$[[ inputs.destination ]]"
+      --verbosity "$[[ inputs.log_level ]]"

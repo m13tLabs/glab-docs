@@ -6,77 +6,69 @@ import (
 	"path/filepath"
 	"regexp"
 
-	"github.com/norwoodj/helm-docs/pkg/helm"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
+
+	"github.com/m13tLabs/glab-docs/pkg/gitlab"
 )
 
-func getOutputFile(chartDirectory string, dryRun bool) (*os.File, error) {
+func getOutputFile(componentDirectory string, dryRun bool) (*os.File, error) {
 	if dryRun {
 		return os.Stdout, nil
 	}
 
 	outputFile := viper.GetString("output-file")
-	f, err := os.Create(filepath.Join(chartDirectory, outputFile))
-
-	if err != nil {
-		return nil, err
-	}
-
-	return f, err
+	return os.Create(filepath.Join(componentDirectory, outputFile))
 }
 
-func PrintDocumentation(chartDocumentationInfo helm.ChartDocumentationInfo, chartSearchRoot string, templateFiles []string, dryRun bool, helmDocsVersion string, badgeStyle string, dependencyValues []DependencyValues, skipVersionFooter bool) {
-	log.Infof("Generating README Documentation for chart %s", chartDocumentationInfo.ChartDirectory)
+// PrintDocumentation renders the README for a single GitLab CI component/pipeline file.
+func PrintDocumentation(
+	info gitlab.ComponentDocumentationInfo,
+	componentSearchRoot string,
+	templateFiles []string,
+	dryRun bool,
+	glabDocsVersion string,
+	componentPrefix string,
+	skipVersionFooter bool,
+) {
+	log.Infof("Generating README documentation for %s", info.SourceFile)
 
-	chartDocumentationTemplate, err := newChartDocumentationTemplate(
-		chartDocumentationInfo,
-		chartSearchRoot,
-		templateFiles,
-		badgeStyle,
-	)
-
+	documentationTemplate, err := newComponentDocumentationTemplate(info, componentSearchRoot, templateFiles)
 	if err != nil {
-		log.Warnf("Error generating gotemplates for chart %s: %s", chartDocumentationInfo.ChartDirectory, err)
+		log.Warnf("Error generating gotemplates for %s: %s", info.SourceFile, err)
 		return
 	}
 
-	chartTemplateDataObject, err := getChartTemplateData(chartDocumentationInfo, helmDocsVersion, dependencyValues, skipVersionFooter)
+	templateDataObject, err := getComponentTemplateData(info, glabDocsVersion, componentPrefix, skipVersionFooter)
 	if err != nil {
-		log.Warnf("Error generating template data for chart %s: %s", chartDocumentationInfo.ChartDirectory, err)
+		log.Warnf("Error generating template data for %s: %s", info.SourceFile, err)
 		return
 	}
 
-	outputFile, err := getOutputFile(chartDocumentationInfo.ChartDirectory, dryRun)
+	outputFile, err := getOutputFile(info.ComponentDirectory, dryRun)
 	if err != nil {
-		log.Warnf("Could not open chart README file %s, skipping chart", filepath.Join(chartDocumentationInfo.ChartDirectory, "README.md"))
+		log.Warnf("Could not open README file for %s, skipping", info.SourceFile)
 		return
 	}
-
 	if !dryRun {
 		defer outputFile.Close()
 	}
 
 	var output bytes.Buffer
-	err = chartDocumentationTemplate.Execute(&output, chartTemplateDataObject)
-	if err != nil {
-		log.Warnf("Error generating documentation for chart %s: %s", chartDocumentationInfo.ChartDirectory, err)
+	if err := documentationTemplate.Execute(&output, templateDataObject); err != nil {
+		log.Warnf("Error generating documentation for %s: %s", info.SourceFile, err)
 	}
 
 	output = applyMarkDownFormat(output)
-	_, err = output.WriteTo(outputFile)
-	if err != nil {
-		log.Warnf("Error generating documentation file for chart %s: %s", chartDocumentationInfo.ChartDirectory, err)
+	if _, err := output.WriteTo(outputFile); err != nil {
+		log.Warnf("Error writing documentation file for %s: %s", info.SourceFile, err)
 	}
 }
 
 func applyMarkDownFormat(output bytes.Buffer) bytes.Buffer {
 	outputString := output.String()
-	re := regexp.MustCompile(` \n`)
-	outputString = re.ReplaceAllString(outputString, "\n")
-
-	re = regexp.MustCompile(`\n{3,}`)
-	outputString = re.ReplaceAllString(outputString, "\n\n")
+	outputString = regexp.MustCompile(` \n`).ReplaceAllString(outputString, "\n")
+	outputString = regexp.MustCompile(`\n{3,}`).ReplaceAllString(outputString, "\n\n")
 
 	output.Reset()
 	output.WriteString(outputString)

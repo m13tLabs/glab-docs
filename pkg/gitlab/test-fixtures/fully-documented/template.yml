@@ -1,0 +1,16 @@
+spec:
+  inputs:
+    stage:
+      default: build
+      description: Pipeline stage the job runs in.
+    image_name:
+      description: Name of the image to build.
+    push:
+      type: boolean
+      default: true
+      description: Whether to push the image after building.
+---
+"build image":
+  stage: $[[ inputs.stage ]]
+  script:
+    - echo "$[[ inputs.image_name ]]"

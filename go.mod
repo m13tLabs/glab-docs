@@ -1,4 +1,4 @@
-module github.com/norwoodj/helm-docs
+module github.com/m13tLabs/glab-docs
 
 go 1.22.0
 
