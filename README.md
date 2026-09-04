@@ -1,3 +1,7 @@
+<p align="center">
+  <img src=".github/assets/logo.svg" alt="glab-docs" width="440">
+</p>
+
 glab-docs
 =========
 
