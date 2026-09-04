@@ -1,93 +1,179 @@
-name: Release
+name: Renovate Config Release
 
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
-
-permissions:
-  contents: write
+    inputs:
+      release_type:
+        description: 'Type of release to build: patch, minor, major, or custom'
+        options:
+          - patch
+          - minor
+          - major
+          - custom
+        default: patch
+        type: choice
+        required: true
+      custom_version:
+        description: "Version to release (only used when release_type is 'custom', e.g. 1.2.3)"
+        type: string
+        required: false
+        default: ''
+      default_branch:
+        description: 'Branch to release from and push commits/tags back to'
+        type: string
+        required: false
+        default: 'develop'
+      draft_release:
+        description: 'Create the GitHub release as a draft'
+        type: boolean
+        required: false
+        default: true
 
 jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        shell: bash
-    env:
-      SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+    permissions:
+      contents: write
+      packages: write
+      attestations: write
+      id-token: write
     steps:
+      - uses: actions/create-github-app-token@v3
+        id: app-token
+        with:
+          client-id: ${{ vars.CI_CLIENT_ID }}
+          private-key: ${{ secrets.CI_PRIVATE_KEY }}
+
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+          ref: ${{ inputs.default_branch }}
 
-      - name: Setup Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
-
-      - name: Import GPG key
-        if: env.SIGNING_KEY != ''
-        id: import_gpg
-        uses: crazy-max/ghaction-import-gpg@2dc316deee8e90f13e1a351ab510b4d5bc0c82cd # v7.0.0
-        with:
-          gpg_private_key: ${{ env.SIGNING_KEY }}
-
-      - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
+      - name: Get GitHub App User ID
+        id: get-user-id
+        run: echo "user-id=$(gh api "/users/${{ steps.app-token.outputs.app-slug }}[bot]" --jq .id)" >> "$GITHUB_OUTPUT"
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
-        with:
-          args: release --clean ${{ env.SIGNING_KEY == '' && '--skip=sign' || '' }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
 
-  image:
-    name: Image
-    runs-on: ubuntu-latest
-    needs: release
-    env:
-      DOCKER_HUB_USER: ${{ secrets.DOCKER_HUB_USER }}
-      DOCKER_HUB_PASSWORD: ${{ secrets.DOCKER_HUB_PASSWORD }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Configure Git author
+        run: |
+          git config --global user.name '${{ steps.app-token.outputs.app-slug }}[bot]'
+          git config --global user.email '${{ steps.get-user-id.outputs.user-id }}+${{ steps.app-token.outputs.app-slug }}[bot]@users.noreply.github.com>'
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@1f40c72289eff860ee54a304f1438e3cff362e0a # v4.3.0
+      - name: Determine release version
+        id: version
+        run: |
+          currentVersion=$(jq -r '.version' config.json)
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+          case "${{ inputs.release_type }}" in
+            custom)
+              releaseVersion="${{ inputs.custom_version }}"
+              if [ -z "$releaseVersion" ]; then
+                echo "custom_version is required when release_type is 'custom'" >&2
+                exit 1
+              fi
+              ;;
+            major|minor|patch)
+              IFS='.' read -r major minor patch <<< "$currentVersion"
+              case "${{ inputs.release_type }}" in
+                major) major=$((major + 1)); minor=0; patch=0 ;;
+                minor) minor=$((minor + 1)); patch=0 ;;
+                patch) patch=$((patch + 1)) ;;
+              esac
+              releaseVersion="${major}.${minor}.${patch}"
+              ;;
+            *)
+              echo "Unknown release_type '${{ inputs.release_type }}'" >&2
+              exit 1
+              ;;
+          esac
 
-      - name: Docker metadata
-        id: meta
-        uses: docker/metadata-action@c1e51972afc2121e065aed6d45c65596fe445f3f # v5.8.0
-        with:
-          images: m13tlabs/glab-docs
-          tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-            type=raw,value=latest
+          echo "Releasing version $releaseVersion (current: $currentVersion)"
+          echo "release_version=$releaseVersion" >> "$GITHUB_OUTPUT"
 
-      - name: Login to Docker Hub
-        if: env.DOCKER_HUB_USER != ''
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
-        with:
-          username: ${{ env.DOCKER_HUB_USER }}
-          password: ${{ env.DOCKER_HUB_PASSWORD }}
+      - name: Bump version
+        run: |
+          jq '.version = "${{ steps.version.outputs.release_version }}"' config.json > config.json.new
+          mv config.json.new config.json
+          git add config.json
+          git commit -m "Release ${{ steps.version.outputs.release_version }}"
 
-      - name: Build and push
-        uses: docker/build-push-action@4f58ea79222b3b9dc2c8bbdd6debcef730109a75 # v6.9.0
-        with:
-          context: .
-          platforms: linux/amd64,linux/arm64
-          push: ${{ env.DOCKER_HUB_USER != '' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          build-args: |
-            VERSION=${{ steps.meta.outputs.version }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+      - name: Update changelog
+        run: |
+          pip install git-cliff
+
+          if [ ! -f cliff.toml ]; then
+            cat > cliff.toml <<'EOF'
+          [changelog]
+          header = ""
+          body = """
+          {% if version %}\
+          ## [{{ version | trim_start_matches(pat="v") }}](https://github.com/${{ github.repository }}/compare/{{ previous.version }}...{{ version }}) ({{ timestamp | date(format="%Y-%m-%d") }})
+          {% else %}\
+          ## [Unreleased]
+          {% endif %}\
+
+          {% for group, commits in commits | group_by(attribute="group") %}
+          ### {{ group }}
+
+          {% for commit in commits %}\
+          * {% if commit.scope %}**{{ commit.scope }}:** {% endif %}{{ commit.message | upper_first }} \
+          ([{{ commit.id | truncate(length=7, end="") }}](https://github.com/${{ github.repository }}/commit/{{ commit.id }}))\
+          {% if commit.breaking %} **BREAKING CHANGE**{% endif %}
+
+          {% endfor %}
+          {% endfor %}\n
+          """
+          trim = true
+          footer = ""
+
+          [git]
+          conventional_commits = true
+          filter_unconventional = true
+          split_commits = false
+          tag_pattern = "v[0-9].*"
+          skip_tags = ""
+          ignore_tags = ""
+          sort_commits = "oldest"
+
+          commit_parsers = [
+              { message = "^feat", group = "Features" },
+              { message = "^fix", group = "Bug Fixes" },
+              { message = "^perf", group = "Performance" },
+              { message = "^refactor", group = "Refactoring" },
+              { message = "^doc|^docs", group = "Documentation" },
+              { message = "^test", group = "Testing" },
+              { message = "^chore\\(deps\\)", group = "Dependency Updates" },
+              { message = "^chore", skip = true },
+              { message = "^ci", skip = true },
+              { message = "^style", skip = true },
+              { body = ".*security", group = "Security" },
+          ]
+
+          protect_breaking_commits = false
+          filter_commits = true
+          EOF
+            git add cliff.toml
+          fi
+
+          touch CHANGELOG.md
+          git-cliff --config cliff.toml --tag "v${{ steps.version.outputs.release_version }}" --unreleased --prepend CHANGELOG.md
+          git-cliff --config cliff.toml --tag "v${{ steps.version.outputs.release_version }}" --latest --strip header > RELEASE_NOTES.md
+
+          git add CHANGELOG.md
+          git commit -m "chore: Changelog for Release ${{ steps.version.outputs.release_version }}"
+
+      - name: Push
+        run: git push origin ${{ inputs.default_branch }}
+
+      - name: Create Release on GH
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          gh release create "v${{ steps.version.outputs.release_version }}" \
+            ${{ inputs.draft_release && '--draft' || '' }} \
+            --title "${{ steps.version.outputs.release_version }}" \
+            --notes-file RELEASE_NOTES.md
