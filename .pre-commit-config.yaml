@@ -8,5 +8,5 @@ repos:
         pass_filenames: false
         files: (README\.md\.gotmpl|\.gitlab-ci\.ya?ml|/templates/.*\.ya?ml)$
         args:
-          - --search-root=example-components
+          - --search-root=.
           - --component-prefix=gitlab.com/m13tlabs/glab-docs

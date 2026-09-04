@@ -40,10 +40,14 @@ func compileSearchPatterns(patterns []string) []glob.Glob {
 }
 
 // matchesAnyPattern reports whether relPath, or any of its trailing path segments, matches one of
-// the compiled patterns. Checking suffixes lets a pattern like "templates/*.yml" match a file at
-// "some-component/templates/foo.yml".
-func matchesAnyPattern(relPath string, matchers []glob.Glob) bool {
+// the compiled patterns. rootName (the base name of the search root) is prepended first, so that
+// pointing --search-root straight at a "templates" directory still lets a "templates/*.yml"
+// pattern match, and checking suffixes lets it match "some-component/templates/foo.yml" too.
+func matchesAnyPattern(relPath, rootName string, matchers []glob.Glob) bool {
 	segments := strings.Split(relPath, "/")
+	if rootName != "" && rootName != "." && rootName != "/" {
+		segments = append([]string{rootName}, segments...)
+	}
 	for start := range segments {
 		candidate := strings.Join(segments[start:], "/")
 		for _, matcher := range matchers {
@@ -68,6 +72,7 @@ func FindComponentFiles(componentSearchRoot string) ([]string, error) {
 	}
 	matchers := compileSearchPatterns(patterns)
 
+	rootName := filepath.Base(componentSearchRoot)
 	componentFiles := make([]string, 0)
 
 	err := filepath.Walk(componentSearchRoot, func(path string, info os.FileInfo, err error) error {
@@ -96,7 +101,7 @@ func FindComponentFiles(componentSearchRoot string) ([]string, error) {
 		}
 
 		matchPath := filepath.ToSlash(relativePath)
-		if matchesAnyPattern(matchPath, matchers) {
+		if matchesAnyPattern(matchPath, rootName, matchers) {
 			componentFiles = append(componentFiles, relativePath)
 		}
 

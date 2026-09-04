@@ -1,0 +1,16 @@
+# -- Integration pipeline: runs the glab-docs component against this repo's own
+# fixtures and templates, checking that the committed READMEs are up to date.
+stages:
+  - test
+
+include:
+  - component: $CI_SERVER_FQDN/$CI_PROJECT_PATH/glab-docs@$CI_COMMIT_SHA
+    inputs:
+      job-name: docs-example-components
+      search-root: example-components
+      component-prefix: gitlab.com/m13tlabs/glab-docs
+  - component: $CI_SERVER_FQDN/$CI_PROJECT_PATH/glab-docs@$CI_COMMIT_SHA
+    inputs:
+      job-name: docs-templates
+      search-root: templates
+      component-prefix: gitlab.com/m13tlabs/glab-docs

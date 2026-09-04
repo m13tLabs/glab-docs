@@ -1,0 +1,87 @@
+# -- Generates or checks GitLab CI component/pipeline documentation with glab-docs.
+spec:
+  inputs:
+    stage:
+      default: test
+      description: Pipeline stage the generated job runs in.
+    image:
+      default: m13tlabs/glab-docs
+      description: glab-docs container image, without the tag.
+    version:
+      default: latest
+      description: glab-docs container image tag.
+    search-root:
+      default: .
+      description: Directory glab-docs searches for CI YAML files (`--search-root`).
+    search-pattern:
+      default: ""
+      description: Comma-separated `--search-pattern` globs. Empty keeps the built-in defaults.
+    component-prefix:
+      default: $CI_SERVER_FQDN/$CI_PROJECT_PATH
+      description: Address prefix for the generated include snippet (`--component-prefix`).
+    template-files:
+      default: README.md.gotmpl
+      description: Template file name passed to `--template-files`.
+    output-file:
+      default: README.md
+      description: Generated file name passed to `--output-file`.
+    strict:
+      type: boolean
+      default: false
+      description: Fail on undocumented inputs / variables (adds `--documentation-strict-mode`).
+    mode:
+      default: check
+      description: "`check` fails the job when the committed docs are stale; `generate` just writes them."
+      options:
+        - check
+        - generate
+    extra-args:
+      default: ""
+      description: Extra raw arguments appended to the glab-docs command.
+    job-name:
+      default: glab-docs
+      description: Name of the generated job.
+    allow-failure:
+      type: boolean
+      default: false
+      description: Mark the job as allowed to fail.
+
+---
+
+"$[[ inputs.job-name ]]":
+  stage: $[[ inputs.stage ]]
+  image:
+    name: "$[[ inputs.image ]]:$[[ inputs.version ]]"
+    entrypoint: [""]
+  allow_failure: $[[ inputs.allow-failure ]]
+  before_script:
+    - apk add --no-cache git
+  script:
+    - |
+      set -eu
+      args="--search-root=$[[ inputs.search-root ]]"
+      args="$args --output-file=$[[ inputs.output-file ]]"
+      args="$args --template-files=$[[ inputs.template-files ]]"
+      if [ -n "$[[ inputs.component-prefix ]]" ]; then
+        args="$args --component-prefix=$[[ inputs.component-prefix ]]"
+      fi
+      if [ -n "$[[ inputs.search-pattern ]]" ]; then
+        args="$args --search-pattern=$[[ inputs.search-pattern ]]"
+      fi
+      if [ "$[[ inputs.strict ]]" = "true" ]; then
+        args="$args --documentation-strict-mode"
+      fi
+      args="$args $[[ inputs.extra-args ]]"
+      echo "+ glab-docs $args"
+      # shellcheck disable=SC2086
+      glab-docs $args
+    - |
+      set -eu
+      if [ "$[[ inputs.mode ]]" = "check" ]; then
+        if ! git diff --exit-code; then
+          echo
+          echo "glab-docs output is out of date - run glab-docs locally and commit the result."
+          exit 1
+        fi
+        echo "Documentation is up to date."
+      fi

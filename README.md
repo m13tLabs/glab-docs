@@ -146,6 +146,23 @@ Built-in sub-templates:
 takes allowed-undocumented paths (`inputs.foo`, `variables.BAR`, or a bare name); `-z` takes
 regexps. Both are repeatable.
 
+## GitLab CI/CD component
+
+To run `glab-docs` inside a GitLab pipeline, include the bundled component instead of writing
+a job by hand:
+
+```yaml
+include:
+  - component: $CI_SERVER_FQDN/m13tlabs/glab-docs/glab-docs@<version>
+    inputs:
+      search-root: templates
+      # mode: check   # default - fails the job when committed docs are stale
+      # mode: generate
+```
+
+See [templates/README.md](templates/README.md) for every input. The component runs the
+`m13tlabs/glab-docs` image; `check` mode `git diff --exit-code`s the regenerated output.
+
 ## Pre-commit
 
 ```yaml
