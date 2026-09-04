@@ -1,5 +1,5 @@
-/helm-docs
-/cmd/helm-docs/helm-docs
+/glab-docs
+/cmd/glab-docs/glab-docs
 dist
 .idea/
 *.iml

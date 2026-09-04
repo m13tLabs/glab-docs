@@ -1,15 +1,12 @@
 repos:
-  - repo: https://github.com/norwoodj/helm-docs
-    rev: v1.14.2
+  - repo: local
     hooks:
-      - id: helm-docs
+      - id: glab-docs
+        name: glab-docs
+        entry: go run ./cmd/glab-docs
+        language: system
+        pass_filenames: false
+        files: (README\.md\.gotmpl|\.gitlab-ci\.ya?ml|/templates/.*\.ya?ml)$
         args:
-          # Make the tool search for charts only under the `example-charts` directory
-          - --chart-search-root=example-charts
-
-          # The `./` makes it relative to the chart-search-root set above
-          - --template-files=./_templates.gotmpl
-
-          # Repeating the flag adds this to the list, now [./_templates.gotmpl, README.md.gotmpl]
-          # A base filename makes it relative to each chart directory found
-          - --template-files=README.md.gotmpl
+          - --search-root=example-components
+          - --component-prefix=gitlab.com/m13tlabs/glab-docs

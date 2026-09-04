@@ -1,26 +1,26 @@
-- id: helm-docs
+- id: glab-docs
   args: []
-  description: Uses 'helm-docs' to create documentation from the Helm chart's 'values.yaml' file, and inserts the result into a corresponding 'README.md' file.
-  entry: git-hook/helm-docs
-  files: (README\.md\.gotmpl|(Chart|requirements|values)\.yaml)$
+  description: Uses 'glab-docs' to generate documentation from a GitLab CI component's spec:inputs and variables, and writes it to a corresponding 'README.md' file.
+  entry: git-hook/glab-docs
+  files: (README\.md\.gotmpl|\.gitlab-ci\.ya?ml|/templates/.*\.ya?ml)$
   language: script
-  name: Helm Docs
+  name: glab-docs
   require_serial: true
 
-- id: helm-docs-built
+- id: glab-docs-built
   args: []
-  description: Uses auto built 'helm-docs' to create documentation from the Helm chart's 'values.yaml' file, and inserts the result into a corresponding 'README.md' file.
-  entry: helm-docs
-  files: (README\.md\.gotmpl|(Chart|requirements|values)\.yaml)$
+  description: Uses auto built 'glab-docs' to generate documentation from a GitLab CI component's spec:inputs and variables, and writes it to a corresponding 'README.md' file.
+  entry: glab-docs
+  files: (README\.md\.gotmpl|\.gitlab-ci\.ya?ml|/templates/.*\.ya?ml)$
   language: golang
-  name: Helm Docs Built
+  name: glab-docs built
   require_serial: true
 
-- id: helm-docs-container
+- id: glab-docs-container
   args: []
-  description: Uses the container image of 'helm-docs' to create documentation from the Helm chart's 'values.yaml' file, and inserts the result into a corresponding 'README.md' file.
-  entry: jnorwood/helm-docs:latest
-  files: (README\.md\.gotmpl|(Chart|requirements|values)\.yaml)$
+  description: Uses the container image of 'glab-docs' to generate documentation from a GitLab CI component's spec:inputs and variables, and writes it to a corresponding 'README.md' file.
+  entry: m13tlabs/glab-docs:latest
+  files: (README\.md\.gotmpl|\.gitlab-ci\.ya?ml|/templates/.*\.ya?ml)$
   language: docker_image
-  name: Helm Docs Container
+  name: glab-docs container
   require_serial: true

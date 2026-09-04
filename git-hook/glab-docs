@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+set -e
+
+if ! command -v glab-docs > /dev/null 2>&1; then
+    echo "Please install glab-docs to run the pre-commit hook! https://github.com/m13tLabs/glab-docs#installation"
+    exit 1
+fi
+
+glab-docs "${@}"

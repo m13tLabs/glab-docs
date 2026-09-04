@@ -1,7 +1,9 @@
 FROM alpine:3.20
 
-COPY helm-docs /usr/bin/
+RUN apk add --no-cache git
 
-WORKDIR /helm-docs
+COPY glab-docs /usr/bin/
 
-ENTRYPOINT ["helm-docs"]
+WORKDIR /glab-docs
+
+ENTRYPOINT ["glab-docs"]

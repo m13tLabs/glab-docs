@@ -1,39 +1,42 @@
 package document
 
 import (
-	"fmt"
 	"sort"
-	"strings"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
-	"gopkg.in/yaml.v3"
 
-	"github.com/norwoodj/helm-docs/pkg/helm"
+	"github.com/m13tLabs/glab-docs/pkg/gitlab"
 )
 
-type valueRow struct {
-	Key             string
-	Type            string
-	NotationType    string
-	AutoDefault     string
-	Default         string
-	AutoDescription string
-	Description     string
-	Section         string
-	Column          int
-	LineNumber      int
-	Dependency      string
-	IsGlobal        bool
+// inputRow is one row of the component's `spec:inputs:` table.
+type inputRow struct {
+	Name        string
+	Type        string
+	Default     string
+	Description string
+	Regex       string
+	Options     []string
+	Required    bool
+	Section     string
+	LineNumber  int
+	Column      int
 }
 
-type chartTemplateData struct {
-	helm.ChartDocumentationInfo
-	HelmDocsVersion   string
-	Values            []valueRow
-	Sections          sections
-	Files             files
-	SkipVersionFooter bool
+// variableRow is one row of the pipeline's `variables:` table.
+type variableRow struct {
+	Name        string
+	Default     string
+	Description string
+	Options     []string
+	Section     string
+	LineNumber  int
+	Column      int
+}
+
+type section struct {
+	SectionName  string
+	SectionItems []inputRow
 }
 
 type sections struct {
@@ -41,190 +44,111 @@ type sections struct {
 	Sections       []section
 }
 
-type section struct {
-	SectionName  string
-	SectionItems []valueRow
+type componentTemplateData struct {
+	gitlab.ComponentDocumentationInfo
+
+	GlabDocsVersion   string
+	ComponentPrefix   string
+	Inputs            []inputRow
+	InputSections     sections
+	Variables         []variableRow
+	IncludeItems      []gitlab.IncludeItem
+	Files             files
+	SkipVersionFooter bool
 }
 
-func sortValueRowsByOrder(valueRows []valueRow, sortOrder string) {
-	sort.Slice(valueRows, func(i, j int) bool {
-		// Globals sort above non-globals.
-		if valueRows[i].IsGlobal != valueRows[j].IsGlobal {
-			return valueRows[i].IsGlobal
-		}
+func resolveSortOrder() string {
+	sortOrder := viper.GetString("sort-values-order")
+	if sortOrder != FileSortOrder && sortOrder != AlphaNumSortOrder {
+		log.Warnf("Invalid sort order provided %s, defaulting to %s", sortOrder, AlphaNumSortOrder)
+		sortOrder = AlphaNumSortOrder
+	}
+	return sortOrder
+}
 
-		// Group by dependency for non-globals.
-		if !valueRows[i].IsGlobal && !valueRows[j].IsGlobal {
-			// Values for the main chart sort above values for dependencies.
-			if (valueRows[i].Dependency == "") != (valueRows[j].Dependency == "") {
-				return valueRows[i].Dependency == ""
+func sortInputRows(rows []inputRow) {
+	sortOrder := resolveSortOrder()
+	sort.SliceStable(rows, func(i, j int) bool {
+		if sortOrder == FileSortOrder {
+			if rows[i].LineNumber == rows[j].LineNumber {
+				return rows[i].Column < rows[j].Column
 			}
-
-			// Group dependency values together.
-			if valueRows[i].Dependency != valueRows[j].Dependency {
-				return valueRows[i].Dependency < valueRows[j].Dependency
-			}
+			return rows[i].LineNumber < rows[j].LineNumber
 		}
-
-		// Sort the remaining values within the same section using the configured sort order.
-		switch sortOrder {
-		case FileSortOrder:
-			if valueRows[i].LineNumber == valueRows[j].LineNumber {
-				return valueRows[i].Column < valueRows[j].Column
-			}
-			return valueRows[i].LineNumber < valueRows[j].LineNumber
-		case AlphaNumSortOrder:
-			return valueRows[i].Key < valueRows[j].Key
-		default:
-			panic("cannot get here")
-		}
+		return rows[i].Name < rows[j].Name
 	})
 }
 
-func sortValueRows(valueRows []valueRow) {
-	sortOrder := viper.GetString("sort-values-order")
-
-	if sortOrder != FileSortOrder && sortOrder != AlphaNumSortOrder {
-		log.Warnf("Invalid sort order provided %s, defaulting to %s", sortOrder, AlphaNumSortOrder)
-		sortOrder = AlphaNumSortOrder
-	}
-
-	sortValueRowsByOrder(valueRows, sortOrder)
+func sortVariableRows(rows []variableRow) {
+	sortOrder := resolveSortOrder()
+	sort.SliceStable(rows, func(i, j int) bool {
+		if sortOrder == FileSortOrder {
+			if rows[i].LineNumber == rows[j].LineNumber {
+				return rows[i].Column < rows[j].Column
+			}
+			return rows[i].LineNumber < rows[j].LineNumber
+		}
+		return rows[i].Name < rows[j].Name
+	})
 }
 
-func sortSectionedValueRows(sectionedValueRows sections) {
-	sortOrder := viper.GetString("sort-values-order")
-
-	if sortOrder != FileSortOrder && sortOrder != AlphaNumSortOrder {
-		log.Warnf("Invalid sort order provided %s, defaulting to %s", sortOrder, AlphaNumSortOrder)
-		sortOrder = AlphaNumSortOrder
+func groupInputSections(rows []inputRow) sections {
+	grouped := sections{
+		DefaultSection: section{SectionName: "Inputs", SectionItems: []inputRow{}},
 	}
 
-	sortValueRowsByOrder(sectionedValueRows.DefaultSection.SectionItems, sortOrder)
-
-	for _, section := range sectionedValueRows.Sections {
-		sortValueRowsByOrder(section.SectionItems, sortOrder)
-	}
-}
-
-func getUnsortedValueRows(document *yaml.Node, descriptions map[string]helm.ChartValueDescription) ([]valueRow, error) {
-	// Handle empty values file case.
-	if document.Kind == 0 {
-		return nil, nil
-	}
-
-	if document.Kind != yaml.DocumentNode {
-		return nil, fmt.Errorf("invalid node kind supplied: %d", document.Kind)
-	}
-
-	if document.Content[0].Kind != yaml.MappingNode {
-		return nil, fmt.Errorf("values file must resolve to a map (was %d)", document.Content[0].Kind)
-	}
-
-	return createValueRowsFromField("", nil, document.Content[0], descriptions, true)
-}
-
-func getSectionedValueRows(valueRows []valueRow) sections {
-	var valueRowsSectionSorted sections
-	valueRowsSectionSorted.DefaultSection = section{
-		SectionName:  "Other Values",
-		SectionItems: []valueRow{},
-	}
-
-	for _, row := range valueRows {
+	for _, row := range rows {
 		if row.Section == "" {
-			valueRowsSectionSorted.DefaultSection.SectionItems = append(valueRowsSectionSorted.DefaultSection.SectionItems, row)
+			grouped.DefaultSection.SectionItems = append(grouped.DefaultSection.SectionItems, row)
 			continue
 		}
 
-		containsSection := false
-		for i, section := range valueRowsSectionSorted.Sections {
-			if section.SectionName == row.Section {
-				containsSection = true
-				valueRowsSectionSorted.Sections[i].SectionItems = append(valueRowsSectionSorted.Sections[i].SectionItems, row)
+		found := false
+		for i := range grouped.Sections {
+			if grouped.Sections[i].SectionName == row.Section {
+				grouped.Sections[i].SectionItems = append(grouped.Sections[i].SectionItems, row)
+				found = true
 				break
 			}
 		}
-
-		if !containsSection {
-			valueRowsSectionSorted.Sections = append(valueRowsSectionSorted.Sections, section{
+		if !found {
+			grouped.Sections = append(grouped.Sections, section{
 				SectionName:  row.Section,
-				SectionItems: []valueRow{row},
+				SectionItems: []inputRow{row},
 			})
 		}
 	}
 
-	return valueRowsSectionSorted
+	return grouped
 }
 
-func getChartTemplateData(info helm.ChartDocumentationInfo, helmDocsVersion string, dependencyValues []DependencyValues, skipVersionFooter bool) (chartTemplateData, error) {
-	valuesTableRows, err := getUnsortedValueRows(info.ChartValues, info.ChartValuesDescriptions)
+func getComponentTemplateData(info gitlab.ComponentDocumentationInfo, glabDocsVersion, componentPrefix string, skipVersionFooter bool) (componentTemplateData, error) {
+	inputRows, err := getInputRows(info.SpecInputs, info.InputDescriptions)
 	if err != nil {
-		return chartTemplateData{}, err
+		return componentTemplateData{}, err
 	}
+	sortInputRows(inputRows)
 
-	if viper.GetBool("ignore-non-descriptions") {
-		valuesTableRows = removeRowsWithoutDescription(valuesTableRows)
-	}
-
-	if len(dependencyValues) > 0 {
-		seenGlobalKeys := make(map[string]bool)
-		for i, row := range valuesTableRows {
-			if strings.HasPrefix(row.Key, "global.") {
-				valuesTableRows[i].IsGlobal = true
-				seenGlobalKeys[row.Key] = true
-			}
-		}
-
-		for _, dep := range dependencyValues {
-			depValuesTableRows, err := getUnsortedValueRows(dep.ChartValues, dep.ChartValuesDescriptions)
-			if err != nil {
-				return chartTemplateData{}, err
-			}
-
-			for _, row := range depValuesTableRows {
-				if row.Key == "global" || strings.HasPrefix(row.Key, "global.") {
-					if seenGlobalKeys[row.Key] {
-						continue
-					}
-					row.IsGlobal = true
-					seenGlobalKeys[row.Key] = true
-				} else {
-					row.Key = dep.Prefix + "." + row.Key
-				}
-
-				row.Dependency = dep.Prefix
-				valuesTableRows = append(valuesTableRows, row)
-			}
-		}
-	}
-
-	sortValueRows(valuesTableRows)
-	valueRowsSectionSorted := getSectionedValueRows(valuesTableRows)
-	sortSectionedValueRows(valueRowsSectionSorted)
-
-	files, err := getFiles(info.ChartDirectory)
+	variableRows, err := getVariableRows(info.Variables, info.VariableDescriptions)
 	if err != nil {
-		return chartTemplateData{}, err
+		return componentTemplateData{}, err
+	}
+	sortVariableRows(variableRows)
+
+	componentFiles, err := getFiles(info.ComponentDirectory)
+	if err != nil {
+		return componentTemplateData{}, err
 	}
 
-	return chartTemplateData{
-		ChartDocumentationInfo: info,
-		HelmDocsVersion:        helmDocsVersion,
-		Values:                 valuesTableRows,
-		Sections:               valueRowsSectionSorted,
-		Files:                  files,
-		SkipVersionFooter:      skipVersionFooter,
+	return componentTemplateData{
+		ComponentDocumentationInfo: info,
+		GlabDocsVersion:            glabDocsVersion,
+		ComponentPrefix:            componentPrefix,
+		Inputs:                     inputRows,
+		InputSections:              groupInputSections(inputRows),
+		Variables:                  variableRows,
+		IncludeItems:               info.Includes,
+		Files:                      componentFiles,
+		SkipVersionFooter:          skipVersionFooter,
 	}, nil
-}
-
-func removeRowsWithoutDescription(valuesTableRows []valueRow) []valueRow {
-
-	var valuesTableRowsWithoutDescription []valueRow
-	for i := range valuesTableRows {
-		if valuesTableRows[i].AutoDescription != "" || valuesTableRows[i].Description != "" {
-			valuesTableRowsWithoutDescription = append(valuesTableRowsWithoutDescription, valuesTableRows[i])
-		}
-	}
-	return valuesTableRowsWithoutDescription
 }

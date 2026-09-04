@@ -1,391 +1,207 @@
 package document
 
 import (
-	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
 	"text/template"
 
-	"github.com/norwoodj/helm-docs/pkg/util"
-
 	log "github.com/sirupsen/logrus"
 
-	"github.com/norwoodj/helm-docs/pkg/helm"
+	"github.com/m13tLabs/glab-docs/pkg/gitlab"
+	"github.com/m13tLabs/glab-docs/pkg/util"
 )
 
-const defaultDocumentationTemplate = `{{ template "chart.header" . }}
-{{ template "chart.deprecationWarning" . }}
+const defaultDocumentationTemplate = `{{ template "pipeline.header" . }}
 
-{{ template "chart.badgesSection" . }}
+{{ template "pipeline.description" . }}
 
-{{ template "chart.description" . }}
+{{ template "pipeline.usageSection" . }}
 
-{{ template "chart.homepageLine" . }}
+{{ template "pipeline.inputsSection" . }}
 
-{{ template "chart.maintainersSection" . }}
+{{ template "pipeline.variablesSection" . }}
 
-{{ template "chart.sourcesSection" . }}
-
-{{ template "chart.requirementsSection" . }}
-
-{{ template "chart.valuesSection" . }}
+{{ template "pipeline.includesSection" . }}
 
 {{- if not .SkipVersionFooter }}
-{{ template "helm-docs.versionFooter" . }}
+{{ template "glab-docs.versionFooter" . }}
 {{- end }}
 `
 
 func getNameTemplate() string {
-	nameBuilder := strings.Builder{}
-	nameBuilder.WriteString(`{{ define "chart.name" }}`)
-	nameBuilder.WriteString("{{ .Name }}")
-	nameBuilder.WriteString("{{ end }}")
-
-	return nameBuilder.String()
+	return `{{ define "pipeline.name" }}{{ .Name }}{{ end }}`
 }
 
 func getHeaderTemplate() string {
-	headerTemplateBuilder := strings.Builder{}
-	headerTemplateBuilder.WriteString(`{{ define "chart.header" }}`)
-	headerTemplateBuilder.WriteString("# {{ .Name }}\n")
-	headerTemplateBuilder.WriteString("{{ end }}")
-
-	return headerTemplateBuilder.String()
-}
-
-func getDeprecatedTemplate() string {
-	deprecatedTemplateBuilder := strings.Builder{}
-	deprecatedTemplateBuilder.WriteString(`{{ define "chart.deprecationWarning" }}`)
-	deprecatedTemplateBuilder.WriteString("{{ if .Deprecated }}> **:exclamation: This Helm Chart is deprecated!**{{ end }}")
-	deprecatedTemplateBuilder.WriteString("{{ end }}")
-
-	return deprecatedTemplateBuilder.String()
-}
-
-func getVersionTemplates(badgeStyle string) string {
-	versionBuilder := strings.Builder{}
-	versionBuilder.WriteString(`{{ define "chart.version" }}{{ .Version }}{{ end }}\n`)
-	versionBuilder.WriteString(`{{ define "chart.versionBadge" }}`)
-	versionBuilder.WriteString(fmt.Sprintf(`![Version: {{ .Version }}](https://img.shields.io/badge/Version-{{ .Version | replace "-" "--" }}-informational?style=%s) `, badgeStyle))
-	versionBuilder.WriteString("{{ end }}")
-
-	return versionBuilder.String()
-}
-
-func getTypeTemplate(badgeStyle string) string {
-	typeBuilder := strings.Builder{}
-	typeBuilder.WriteString(`{{ define "chart.type" }}{{ .Type }}{{ end }}\n`)
-	typeBuilder.WriteString(`{{ define "chart.typeBadge" }}`)
-	typeBuilder.WriteString(fmt.Sprintf("{{ if .Type }}![Type: {{ .Type }}](https://img.shields.io/badge/Type-{{ .Type }}-informational?style=%s) {{ end }}", badgeStyle))
-	typeBuilder.WriteString("{{ end }}")
-
-	return typeBuilder.String()
-}
-
-func getAppVersionTemplate(badgeStyle string) string {
-	appVersionBuilder := strings.Builder{}
-	appVersionBuilder.WriteString(`{{ define "chart.appVersion" }}{{ .AppVersion }}{{ end }}\n`)
-	appVersionBuilder.WriteString(`{{ define "chart.appVersionBadge" }}`)
-	appVersionBuilder.WriteString(fmt.Sprintf(`{{ if .AppVersion }}![AppVersion: {{ .AppVersion }}](https://img.shields.io/badge/AppVersion-{{ .AppVersion | replace "-" "--" }}-informational?style=%s) {{ end }}`, badgeStyle))
-	appVersionBuilder.WriteString("{{ end }}")
-
-	return appVersionBuilder.String()
-}
-
-func getBadgesTemplates() string {
-	badgeBuilder := strings.Builder{}
-	badgeBuilder.WriteString(`{{ define "chart.badgesSection" }}`)
-	badgeBuilder.WriteString(`{{ template "chart.versionBadge" . }}{{ template "chart.typeBadge" . }}{{ template "chart.appVersionBadge" . }}`)
-	badgeBuilder.WriteString("{{ end }}")
-
-	return badgeBuilder.String()
+	b := strings.Builder{}
+	b.WriteString(`{{ define "pipeline.header" }}`)
+	b.WriteString("# {{ .Name }}")
+	b.WriteString("{{ end }}")
+	return b.String()
 }
 
 func getDescriptionTemplate() string {
-	descriptionBuilder := strings.Builder{}
-	descriptionBuilder.WriteString(`{{ define "chart.description" }}`)
-	descriptionBuilder.WriteString("{{ if .Description }}{{ .Description }}{{ end }}")
-	descriptionBuilder.WriteString("{{ end }}")
-
-	return descriptionBuilder.String()
+	b := strings.Builder{}
+	b.WriteString(`{{ define "pipeline.description" }}`)
+	b.WriteString("{{ if .Description }}{{ .Description }}{{ end }}")
+	b.WriteString("{{ end }}")
+	return b.String()
 }
 
-func getHomepageTemplate() string {
-	homepageBuilder := strings.Builder{}
-	homepageBuilder.WriteString(`{{ define "chart.homepage" }}{{ .Home }}{{ end }}\n`)
-	homepageBuilder.WriteString(`{{ define "chart.homepageLine" }}`)
-	homepageBuilder.WriteString("{{ if .Home }}**Homepage:** <{{ .Home }}>{{ end }}")
-	homepageBuilder.WriteString("{{ end }}")
+func getUsageTemplate() string {
+	b := strings.Builder{}
+	b.WriteString(`{{ define "pipeline.usageHeader" }}## Usage{{ end }}`)
 
-	return homepageBuilder.String()
+	b.WriteString(`{{ define "pipeline.usageSnippet" }}`)
+	b.WriteString("```yaml\n")
+	b.WriteString("include:\n")
+	b.WriteString("  - component: {{ .ComponentPrefix }}")
+	b.WriteString("{{- if .Inputs }}\n    inputs:")
+	b.WriteString("{{- range .Inputs }}\n")
+	b.WriteString(`      {{ .Name }}: {{ if .Required }}"" # required{{ else if .Default }}{{ trimAll "` + "`" + `" .Default }}{{ else }}""{{ end }}`)
+	b.WriteString("{{- end }}")
+	b.WriteString("{{- end }}\n")
+	b.WriteString("```")
+	b.WriteString("{{ end }}")
+
+	b.WriteString(`{{ define "pipeline.usageSection" }}`)
+	b.WriteString("{{ if and .ComponentPrefix .Inputs }}")
+	b.WriteString(`{{ template "pipeline.usageHeader" . }}`)
+	b.WriteString("\n\n")
+	b.WriteString(`{{ template "pipeline.usageSnippet" . }}`)
+	b.WriteString("{{ end }}")
+	b.WriteString("{{ end }}")
+
+	return b.String()
 }
 
-func getMaintainersTemplate() string {
-	maintainerBuilder := strings.Builder{}
-	maintainerBuilder.WriteString(`{{ define "chart.maintainersHeader" }}## Maintainers{{ end }}`)
+func getInputsTemplate() string {
+	b := strings.Builder{}
+	b.WriteString(`{{ define "pipeline.inputsHeader" }}## Inputs{{ end }}`)
 
-	maintainerBuilder.WriteString(`{{ define "chart.maintainersTable" }}`)
-	maintainerBuilder.WriteString("| Name | Email | Url |\n")
-	maintainerBuilder.WriteString("| ---- | ------ | --- |\n")
-	maintainerBuilder.WriteString("  {{- range .Maintainers }}")
-	maintainerBuilder.WriteString("\n| {{ .Name }} | {{ if .Email }}<{{ .Email }}>{{ end }} | {{ if .Url }}<{{ .Url }}>{{ end }} |")
-	maintainerBuilder.WriteString("  {{- end }}")
-	maintainerBuilder.WriteString("{{ end }}")
+	const row = "\n| {{ .Name }} | {{ .Type }} | {{ if .Required }}_required_{{ else if .Default }}{{ .Default }}{{ else }}_none_{{ end }} " +
+		"| {{ range $i, $o := .Options }}{{ if $i }}, {{ end }}`{{ $o }}`{{ end }} | {{ .Description }}{{ if .Regex }}{{ if .Description }}<br>{{ end }}Pattern: `{{ .Regex }}`{{ end }} |"
+	const header = "| Input | Type | Default | Options | Description |\n|-------|------|---------|---------|-------------|"
 
-	maintainerBuilder.WriteString(`{{ define "chart.maintainersSection" }}`)
-	maintainerBuilder.WriteString("{{ if .Maintainers }}")
-	maintainerBuilder.WriteString(`{{ template "chart.maintainersHeader" . }}`)
-	maintainerBuilder.WriteString("\n\n")
-	maintainerBuilder.WriteString(`{{ template "chart.maintainersTable" . }}`)
-	maintainerBuilder.WriteString("{{ end }}")
-	maintainerBuilder.WriteString("{{ end }}")
+	b.WriteString(`{{ define "pipeline.inputsTable" }}`)
+	b.WriteString("{{ if .InputSections.Sections }}")
+	b.WriteString("{{ range .InputSections.Sections }}")
+	b.WriteString("\n\n### {{ .SectionName }}\n\n")
+	b.WriteString(header)
+	b.WriteString("  {{- range .SectionItems }}")
+	b.WriteString(row)
+	b.WriteString("  {{- end }}")
+	b.WriteString("{{- end }}")
+	b.WriteString("{{ if .InputSections.DefaultSection.SectionItems }}")
+	b.WriteString("\n\n### {{ .InputSections.DefaultSection.SectionName }}\n\n")
+	b.WriteString(header)
+	b.WriteString("  {{- range .InputSections.DefaultSection.SectionItems }}")
+	b.WriteString(row)
+	b.WriteString("  {{- end }}")
+	b.WriteString("{{ end }}")
+	b.WriteString("{{ else }}")
+	b.WriteString(header)
+	b.WriteString("  {{- range .Inputs }}")
+	b.WriteString(row)
+	b.WriteString("  {{- end }}")
+	b.WriteString("{{ end }}")
+	b.WriteString("{{ end }}")
 
-	return maintainerBuilder.String()
+	b.WriteString(`{{ define "pipeline.inputsSection" }}`)
+	b.WriteString("{{ if .Inputs }}")
+	b.WriteString(`{{ template "pipeline.inputsHeader" . }}`)
+	b.WriteString("\n\n")
+	b.WriteString(`{{ template "pipeline.inputsTable" . }}`)
+	b.WriteString("{{ end }}")
+	b.WriteString("{{ end }}")
+
+	return b.String()
 }
 
-func getSourceLinkTemplates() string {
-	sourceLinkBuilder := strings.Builder{}
-	sourceLinkBuilder.WriteString(`{{ define "chart.sourcesHeader" }}## Source Code{{ end}}`)
+func getVariablesTemplate() string {
+	b := strings.Builder{}
+	b.WriteString(`{{ define "pipeline.variablesHeader" }}## Variables{{ end }}`)
 
-	sourceLinkBuilder.WriteString(`{{ define "chart.sourcesList" }}`)
-	sourceLinkBuilder.WriteString("{{- range .Sources }}")
-	sourceLinkBuilder.WriteString("\n* <{{ . }}>")
-	sourceLinkBuilder.WriteString("{{- end }}")
-	sourceLinkBuilder.WriteString("{{ end }}")
+	b.WriteString(`{{ define "pipeline.variablesTable" }}`)
+	b.WriteString("| Variable | Default | Options | Description |\n|----------|---------|---------|-------------|")
+	b.WriteString("  {{- range .Variables }}")
+	b.WriteString("\n| {{ .Name }} | {{ if .Default }}{{ .Default }}{{ else }}_none_{{ end }} | {{ range $i, $o := .Options }}{{ if $i }}, {{ end }}`{{ $o }}`{{ end }} | {{ .Description }} |")
+	b.WriteString("  {{- end }}")
+	b.WriteString("{{ end }}")
 
-	sourceLinkBuilder.WriteString(`{{ define "chart.sourcesSection" }}`)
-	sourceLinkBuilder.WriteString("{{ if .Sources }}")
-	sourceLinkBuilder.WriteString(`{{ template "chart.sourcesHeader" . }}`)
-	sourceLinkBuilder.WriteString("\n")
-	sourceLinkBuilder.WriteString(`{{ template "chart.sourcesList" . }}`)
-	sourceLinkBuilder.WriteString("{{ end }}")
-	sourceLinkBuilder.WriteString("{{ end }}")
+	b.WriteString(`{{ define "pipeline.variablesSection" }}`)
+	b.WriteString("{{ if .Variables }}")
+	b.WriteString(`{{ template "pipeline.variablesHeader" . }}`)
+	b.WriteString("\n\n")
+	b.WriteString(`{{ template "pipeline.variablesTable" . }}`)
+	b.WriteString("{{ end }}")
+	b.WriteString("{{ end }}")
 
-	return sourceLinkBuilder.String()
+	return b.String()
 }
 
-func getRequirementsTableTemplates() string {
-	requirementsSectionBuilder := strings.Builder{}
-	requirementsSectionBuilder.WriteString(`{{ define "chart.requirementsHeader" }}## Requirements{{ end }}`)
+func getIncludesTemplate() string {
+	b := strings.Builder{}
+	b.WriteString(`{{ define "pipeline.includesHeader" }}## Includes{{ end }}`)
 
-	requirementsSectionBuilder.WriteString(`{{ define "chart.kubeVersion" }}{{ .KubeVersion }}{{ end }}\n`)
-	requirementsSectionBuilder.WriteString(`{{ define "chart.kubeVersionLine" }}`)
-	requirementsSectionBuilder.WriteString("{{ if .KubeVersion }}Kubernetes: `{{ .KubeVersion }}`{{ end }}")
-	requirementsSectionBuilder.WriteString("{{ end }}")
+	b.WriteString(`{{ define "pipeline.includesTable" }}`)
+	b.WriteString("| Type | Location | Ref |\n|------|----------|-----|")
+	b.WriteString("  {{- range .IncludeItems }}")
+	b.WriteString("\n| {{ .Kind }} | `{{ .Location }}` | {{ if .Ref }}`{{ .Ref }}`{{ end }} |")
+	b.WriteString("  {{- end }}")
+	b.WriteString("{{ end }}")
 
-	requirementsSectionBuilder.WriteString(`{{ define "chart.requirementsTable" }}`)
-	requirementsSectionBuilder.WriteString("| Repository | Name | Version |\n")
-	requirementsSectionBuilder.WriteString("|------------|------|---------|")
-	requirementsSectionBuilder.WriteString("  {{- range .Dependencies }}")
-	requirementsSectionBuilder.WriteString("    {{- if .Alias }}")
-	requirementsSectionBuilder.WriteString("\n| {{ .Repository }} | {{ .Alias }}({{ .Name }}) | {{ .Version }} |")
-	requirementsSectionBuilder.WriteString("    {{- else }}")
-	requirementsSectionBuilder.WriteString("\n| {{ .Repository }} | {{ .Name }} | {{ .Version }} |")
-	requirementsSectionBuilder.WriteString("    {{- end }}")
-	requirementsSectionBuilder.WriteString("  {{- end }}")
-	requirementsSectionBuilder.WriteString("{{ end }}")
+	b.WriteString(`{{ define "pipeline.includesSection" }}`)
+	b.WriteString("{{ if .IncludeItems }}")
+	b.WriteString(`{{ template "pipeline.includesHeader" . }}`)
+	b.WriteString("\n\n")
+	b.WriteString(`{{ template "pipeline.includesTable" . }}`)
+	b.WriteString("{{ end }}")
+	b.WriteString("{{ end }}")
 
-	requirementsSectionBuilder.WriteString(`{{ define "chart.requirementsSection" }}`)
-	requirementsSectionBuilder.WriteString("{{ if or .Dependencies .KubeVersion }}")
-	requirementsSectionBuilder.WriteString(`{{ template "chart.requirementsHeader" . }}`)
-	requirementsSectionBuilder.WriteString("\n\n")
-	requirementsSectionBuilder.WriteString("{{ if .KubeVersion }}")
-	requirementsSectionBuilder.WriteString(`{{ template "chart.kubeVersionLine" . }}`)
-	requirementsSectionBuilder.WriteString("\n\n")
-	requirementsSectionBuilder.WriteString("{{ end }}")
-	requirementsSectionBuilder.WriteString("{{ if .Dependencies }}")
-	requirementsSectionBuilder.WriteString(`{{ template "chart.requirementsTable" . }}`)
-	requirementsSectionBuilder.WriteString("{{ end }}")
-	requirementsSectionBuilder.WriteString("{{ end }}")
-	requirementsSectionBuilder.WriteString("{{ end }}")
-
-	return requirementsSectionBuilder.String()
+	return b.String()
 }
 
-func getValuesTableTemplates() string {
-	valuesSectionBuilder := strings.Builder{}
-	valuesSectionBuilder.WriteString(`{{ define "chart.valuesHeader" }}## Values{{ end }}`)
-
-	valuesSectionBuilder.WriteString(`{{ define "chart.valuesTable" }}`)
-	valuesSectionBuilder.WriteString("{{ if .Sections.Sections }}")
-	valuesSectionBuilder.WriteString("{{ range .Sections.Sections }}")
-	valuesSectionBuilder.WriteString("\n")
-	valuesSectionBuilder.WriteString("\n### {{ .SectionName }}\n")
-	valuesSectionBuilder.WriteString("\n")
-	valuesSectionBuilder.WriteString("| Key | Type | Default | Description |\n")
-	valuesSectionBuilder.WriteString("|-----|------|---------|-------------|\n")
-	valuesSectionBuilder.WriteString("  {{- range .SectionItems }}")
-	valuesSectionBuilder.WriteString("\n| {{ .Key }} | {{ .Type }} | {{ if .Default }}{{ .Default }}{{ else }}{{ .AutoDefault }}{{ end }} | {{ if .Description }}{{ .Description }}{{ else }}{{ .AutoDescription }}{{ end }} |")
-	valuesSectionBuilder.WriteString("  {{- end }}")
-	valuesSectionBuilder.WriteString("{{- end }}")
-	valuesSectionBuilder.WriteString("{{ if .Sections.DefaultSection.SectionItems}}")
-	valuesSectionBuilder.WriteString("\n")
-	valuesSectionBuilder.WriteString("\n### {{ .Sections.DefaultSection.SectionName }}\n")
-	valuesSectionBuilder.WriteString("\n")
-	valuesSectionBuilder.WriteString("| Key | Type | Default | Description |\n")
-	valuesSectionBuilder.WriteString("|-----|------|---------|-------------|\n")
-	valuesSectionBuilder.WriteString("  {{- range .Sections.DefaultSection.SectionItems }}")
-	valuesSectionBuilder.WriteString("\n| {{ .Key }} | {{ .Type }} | {{ if .Default }}{{ .Default }}{{ else }}{{ .AutoDefault }}{{ end }} | {{ if .Description }}{{ .Description }}{{ else }}{{ .AutoDescription }}{{ end }} |")
-	valuesSectionBuilder.WriteString("  {{- end }}")
-	valuesSectionBuilder.WriteString("{{ end }}")
-	valuesSectionBuilder.WriteString("{{ else }}")
-	valuesSectionBuilder.WriteString("| Key | Type | Default | Description |\n")
-	valuesSectionBuilder.WriteString("|-----|------|---------|-------------|\n")
-	valuesSectionBuilder.WriteString("  {{- range .Values }}")
-	valuesSectionBuilder.WriteString("\n| {{ .Key }} | {{ .Type }} | {{ if .Default }}{{ .Default }}{{ else }}{{ .AutoDefault }}{{ end }} | {{ if .Description }}{{ .Description }}{{ else }}{{ .AutoDescription }}{{ end }} |")
-	valuesSectionBuilder.WriteString("  {{- end }}")
-	valuesSectionBuilder.WriteString("{{ end }}")
-	valuesSectionBuilder.WriteString("{{ end }}")
-
-	valuesSectionBuilder.WriteString(`{{ define "chart.valuesSection" }}`)
-	valuesSectionBuilder.WriteString("{{ if .Values }}")
-	valuesSectionBuilder.WriteString(`{{ template "chart.valuesHeader" . }}`)
-	valuesSectionBuilder.WriteString("\n\n")
-	valuesSectionBuilder.WriteString(`{{ template "chart.valuesTable" . }}`)
-	valuesSectionBuilder.WriteString("{{ end }}")
-	valuesSectionBuilder.WriteString("{{ end }}")
-
-	// For HTML tables
-	valuesSectionBuilder.WriteString(`
-{{ define "chart.valueDefaultColumnRender" }}
-{{- $defaultValue := (default .Default .AutoDefault)  -}}
-{{- $notationType := .NotationType }}
-{{- if (and (hasPrefix "` + "`" + `" $defaultValue) (hasSuffix "` + "`" + `" $defaultValue) ) -}}
-{{- $defaultValue = (toPrettyJson (fromJson (trimAll "` + "`" + `" (default .Default .AutoDefault) ) ) ) -}}
-{{- $notationType = "json" }}
-{{- end -}}
-<pre lang="{{ $notationType }}">
-{{- if (eq $notationType "tpl" ) }}
-{{ .Key }}: |
-{{- $defaultValue | nindent 2 }}
-{{- else }}
-{{ $defaultValue }}
-{{- end }}
-</pre>
-{{ end }}
-
-{{ define "chart.valuesTableHtml" }}
-{{ if .Sections.Sections }}
-{{- range .Sections.Sections }}
-<h3>{{- .SectionName }}</h3>
-<table>
-	<thead>
-		<th>Key</th>
-		<th>Type</th>
-		<th>Default</th>
-		<th>Description</th>
-	</thead>
-	<tbody>
-	{{- range .SectionItems }}
-		<tr>
-			<td>{{ .Key }}</td>
-			<td>{{ .Type }}</td>
-			<td>{{ template "chart.valueDefaultColumnRender" . }}</td>
-			<td>{{ if .Description }}{{ .Description }}{{ else }}{{ .AutoDescription }}{{ end }}</td>
-		</tr>
-	{{- end }}
-	</tbody>
-</table>
-{{- end }}
-{{ if .Sections.DefaultSection.SectionItems }}
-<h3>{{- .Sections.DefaultSection.SectionName }}</h3>
-<table>
-	<thead>
-		<th>Key</th>
-		<th>Type</th>
-		<th>Default</th>
-		<th>Description</th>
-	</thead>
-	<tbody>
-	{{- range .Sections.DefaultSection.SectionItems }}
-	<tr>
-		<td>{{ .Key }}</td>
-		<td>{{ .Type }}</td>
-		<td>{{ template "chart.valueDefaultColumnRender" . }}</td>
-		<td>{{ if .Description }}{{ .Description }}{{ else }}{{ .AutoDescription }}{{ end }}</td>
-	</tr>
-	{{- end }}
-	</tbody>
-</table>
-{{ end }}
-{{ else }}
-<table>
-	<thead>
-		<th>Key</th>
-		<th>Type</th>
-		<th>Default</th>
-		<th>Description</th>
-	</thead>
-	<tbody>
-	{{- range .Values }}
-		<tr>
-			<td>{{ .Key }}</td>
-			<td>{{ .Type }}</td>
-			<td>{{ template "chart.valueDefaultColumnRender" . }}</td>
-			<td>{{ if .Description }}{{ .Description }}{{ else }}{{ .AutoDescription }}{{ end }}</td>
-		</tr>
-	{{- end }}
-	</tbody>
-</table>
-{{ end }}
-{{ end }}
-
-{{ define "chart.valuesSectionHtml" }}
-{{ if .Sections }}
-{{ template "chart.valuesHeader" . }}
-{{ template "chart.valuesTableHtml" . }}
-{{ end }}
-{{ end }}
-		`)
-
-	return valuesSectionBuilder.String()
+func getVersionFooterTemplate() string {
+	b := strings.Builder{}
+	b.WriteString(`{{ define "glab-docs.version" }}{{ if .GlabDocsVersion }}{{ .GlabDocsVersion }}{{ end }}{{ end }}`)
+	b.WriteString(`{{ define "glab-docs.versionFooter" }}`)
+	b.WriteString("{{ if .GlabDocsVersion }}\n")
+	b.WriteString("----------------------------------------------\n")
+	b.WriteString("Autogenerated from the pipeline definition using [glab-docs v{{ .GlabDocsVersion }}](https://github.com/m13tLabs/glab-docs/releases/v{{ .GlabDocsVersion }})")
+	b.WriteString("{{ end }}")
+	b.WriteString("{{ end }}")
+	return b.String()
 }
 
-func getHelmDocsVersionTemplates() string {
-	versionSectionBuilder := strings.Builder{}
-	versionSectionBuilder.WriteString(`{{ define "helm-docs.version" }}{{ if .HelmDocsVersion }}{{ .HelmDocsVersion }}{{ end }}{{ end }}`)
-	versionSectionBuilder.WriteString(`{{ define "helm-docs.versionFooter" }}`)
-	versionSectionBuilder.WriteString("{{ if .HelmDocsVersion }}\n")
-	versionSectionBuilder.WriteString("----------------------------------------------\n")
-	versionSectionBuilder.WriteString("Autogenerated from chart metadata using [helm-docs v{{ .HelmDocsVersion }}](https://github.com/norwoodj/helm-docs/releases/v{{ .HelmDocsVersion }})")
-	versionSectionBuilder.WriteString("{{ end }}")
-	versionSectionBuilder.WriteString("{{ end }}")
-
-	return versionSectionBuilder.String()
-}
-
-func getDocumentationTemplate(chartDirectory string, chartSearchRoot string, templateFiles []string) (string, error) {
-	templateFilesForChart := make([]string, 0)
-
+func getDocumentationTemplate(componentDirectory string, componentSearchRoot string, templateFiles []string) (string, error) {
+	templateFilesForComponent := make([]string, 0)
 	var templateNotFound bool
 
 	for _, templateFile := range templateFiles {
 		var fullTemplatePath string
 
 		if util.IsRelativePath(templateFile) {
-			fullTemplatePath = filepath.Join(chartSearchRoot, templateFile)
+			fullTemplatePath = filepath.Join(componentSearchRoot, templateFile)
 		} else if util.IsBaseFilename(templateFile) {
-			fullTemplatePath = filepath.Join(chartDirectory, templateFile)
+			fullTemplatePath = filepath.Join(componentDirectory, templateFile)
 		} else {
 			fullTemplatePath = templateFile
 		}
 
 		if _, err := os.Stat(fullTemplatePath); os.IsNotExist(err) {
-			log.Debugf("Did not find template file %s for chart %s, using default template", templateFile, chartDirectory)
-
+			log.Debugf("Did not find template file %s for %s, using default template", templateFile, componentDirectory)
 			templateNotFound = true
 			continue
 		}
 
-		templateFilesForChart = append(templateFilesForChart, fullTemplatePath)
+		templateFilesForComponent = append(templateFilesForComponent, fullTemplatePath)
 	}
 
-	log.Debugf("Using template files %s for chart %s", templateFiles, chartDirectory)
 	allTemplateContents := make([]byte, 0)
-	for _, templateFileForChart := range templateFilesForChart {
-		templateContents, err := ioutil.ReadFile(templateFileForChart)
+	for _, templateFileForComponent := range templateFilesForComponent {
+		templateContents, err := os.ReadFile(templateFileForComponent)
 		if err != nil {
 			return "", err
 		}
@@ -399,46 +215,37 @@ func getDocumentationTemplate(chartDirectory string, chartSearchRoot string, tem
 	return string(allTemplateContents), nil
 }
 
-func getDocumentationTemplates(chartDirectory string, chartSearchRoot string, templateFiles []string, badgeStyle string) ([]string, error) {
-	documentationTemplate, err := getDocumentationTemplate(chartDirectory, chartSearchRoot, templateFiles)
-
+func getDocumentationTemplates(componentDirectory string, componentSearchRoot string, templateFiles []string) ([]string, error) {
+	documentationTemplate, err := getDocumentationTemplate(componentDirectory, componentSearchRoot, templateFiles)
 	if err != nil {
-		log.Errorf("Failed to read documentation template for chart %s: %s", chartDirectory, err)
+		log.Errorf("Failed to read documentation template for %s: %s", componentDirectory, err)
 		return nil, err
 	}
 
 	return []string{
 		getNameTemplate(),
 		getHeaderTemplate(),
-		getDeprecatedTemplate(),
-		getAppVersionTemplate(badgeStyle),
-		getBadgesTemplates(),
 		getDescriptionTemplate(),
-		getVersionTemplates(badgeStyle),
-		getTypeTemplate(badgeStyle),
-		getSourceLinkTemplates(),
-		getRequirementsTableTemplates(),
-		getValuesTableTemplates(),
-		getHomepageTemplate(),
-		getMaintainersTemplate(),
-		getHelmDocsVersionTemplates(),
+		getUsageTemplate(),
+		getInputsTemplate(),
+		getVariablesTemplate(),
+		getIncludesTemplate(),
+		getVersionFooterTemplate(),
 		documentationTemplate,
 	}, nil
 }
 
-func newChartDocumentationTemplate(chartDocumentationInfo helm.ChartDocumentationInfo, chartSearchRoot string, templateFiles []string, badgeStyle string) (*template.Template, error) {
-	documentationTemplate := template.New(chartDocumentationInfo.ChartDirectory)
+func newComponentDocumentationTemplate(info gitlab.ComponentDocumentationInfo, componentSearchRoot string, templateFiles []string) (*template.Template, error) {
+	documentationTemplate := template.New(info.SourceFile)
 	documentationTemplate.Funcs(util.FuncMap())
-	goTemplateList, err := getDocumentationTemplates(chartDocumentationInfo.ChartDirectory, chartSearchRoot, templateFiles, badgeStyle)
 
+	goTemplateList, err := getDocumentationTemplates(info.ComponentDirectory, componentSearchRoot, templateFiles)
 	if err != nil {
 		return nil, err
 	}
 
 	for _, t := range goTemplateList {
-		_, err := documentationTemplate.Parse(t)
-
-		if err != nil {
+		if _, err := documentationTemplate.Parse(t); err != nil {
 			return nil, err
 		}
 	}

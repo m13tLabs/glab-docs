@@ -1,6 +1,0 @@
-global:
-  # -- A global key
-  myGlobalKey: my-global-value
-
-# -- Value for sub-chart B
-mySubKeyB: my-sub-value-b

@@ -1,8 +1,8 @@
-helm-docs:
-	go build github.com/norwoodj/helm-docs/cmd/helm-docs
+glab-docs:
+	go build github.com/m13tLabs/glab-docs/cmd/glab-docs
 
 install:
-	go install github.com/norwoodj/helm-docs/cmd/helm-docs
+	go install github.com/m13tLabs/glab-docs/cmd/glab-docs
 
 .PHONY: fmt
 fmt:
@@ -14,7 +14,7 @@ test:
 
 .PHONY: clean
 clean:
-	rm -f helm-docs
+	rm -f glab-docs
 
 .PHONY: dist
 dist:

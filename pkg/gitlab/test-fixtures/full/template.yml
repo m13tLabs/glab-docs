@@ -1,0 +1,17 @@
+spec:
+  inputs:
+    stage:
+      default: build
+    image_name:
+      description: Name of the image to build.
+    push:
+      type: boolean
+      default: true
+---
+"build image":
+  stage: $[[ inputs.stage ]]
+  variables:
+    REGISTRY: $CI_REGISTRY_IMAGE
+    DOCKER_DRIVER: overlay2
+  script:
+    - echo "$[[ inputs.image_name ]]"

@@ -1,0 +1,26 @@
+# -- Reference pipeline wiring the shared templates together.
+include:
+  - component: $CI_SERVER_FQDN/m13tlabs/glab-docs/build-image@main
+    inputs:
+      destination: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
+  - local: /ci/lint.yml
+  - project: m13tlabs/ci-common
+    file: /templates/scan.yml
+    ref: v2.1.0
+  - template: Security/SAST.gitlab-ci.yml
+
+stages:
+  - lint
+  - build
+  - test
+
+variables:
+  # -- Container image used for lint jobs.
+  LINT_IMAGE: registry.gitlab.com/m13tlabs/ci-images/lint:latest
+  DEPLOY_ENV:
+    value: staging
+    description: Environment the reference pipeline deploys to.
+    options:
+      - staging
+      - production
+  FF_USE_FASTZIP: "true"
