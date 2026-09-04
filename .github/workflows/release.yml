@@ -99,6 +99,14 @@ jobs:
           jq '.version = "${{ steps.version.outputs.release_version }}"' config.json > config.json.new
           mv config.json.new config.json
           git add config.json
+
+          # Pin the CI component template to the image tag this release publishes.
+          V="${{ steps.version.outputs.release_version }}" perl -0pi -e '
+            s/(\n    version:\n(?:      \w[^\n]*\n)*?      default: )[^\n]*/$1 . "\"$ENV{V}\""/e
+              or die "could not update version default in templates/glab-docs.yml\n"
+          ' templates/glab-docs.yml
+          git add templates/glab-docs.yml
+
           git commit -m "Release ${{ steps.version.outputs.release_version }}"
 
       - name: Update changelog
