@@ -10,7 +10,7 @@ require (
 	github.com/spf13/viper v1.16.0
 	github.com/stretchr/testify v1.12.1
 	gopkg.in/yaml.v3 v3.0.1
-	helm.sh/helm/v3 v3.21.4
+	helm.sh/helm/v4 v4.2.4
 	helm.sh/helm/v4 v4.2.4
 )
 
