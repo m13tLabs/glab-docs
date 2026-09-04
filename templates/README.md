@@ -6,7 +6,7 @@ Generates or checks GitLab CI component/pipeline documentation with glab-docs.
 
 ```yaml
 include:
-  - component: gitlab.com/m13tlabs/glab-docs/glab-docs@<version>
+  - component: $CI_SERVER_FQDN/<path-to-project>/glab-docs@<version>
     inputs:
       allow-failure: false
       component-prefix: $CI_SERVER_FQDN/$CI_PROJECT_PATH
@@ -20,7 +20,7 @@ include:
       stage: test
       strict: false
       template-files: README.md.gotmpl
-      version: latest
+      version: 0.1.0
 ```
 
 ## Inputs
@@ -39,7 +39,7 @@ include:
 | stage | string | `test` |  | Pipeline stage the generated job runs in. |
 | strict | boolean | `false` |  | Fail on undocumented inputs / variables (adds `--documentation-strict-mode`). |
 | template-files | string | `README.md.gotmpl` |  | Template file name passed to `--template-files`. |
-| version | string | `latest` |  | glab-docs container image tag. |
+| version | string | `0.1.0` |  | glab-docs container image tag. |
 
 ## Jobs
 

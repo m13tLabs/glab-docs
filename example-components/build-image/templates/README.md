@@ -6,7 +6,7 @@ Builds a container image with Kaniko and pushes it to the project registry.
 
 ```yaml
 include:
-  - component: gitlab.com/m13tlabs/glab-docs/build-image@<version>
+  - component: $CI_SERVER_FQDN/<path-to-project>/build-image@<version>
     inputs:
       build_args: []
       context: .
