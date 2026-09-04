@@ -4,6 +4,10 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   release:
@@ -14,9 +18,14 @@ jobs:
         shell: bash
     env:
       DOCKER_CLI_EXPERIMENTAL: "enabled"
+      DOCKER_HUB_USER: ${{ secrets.DOCKER_HUB_USER }}
+      DOCKER_HUB_PASSWORD: ${{ secrets.DOCKER_HUB_PASSWORD }}
+      SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
     steps:
       - name: Checkout
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          fetch-depth: 0
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@49b3bc8e6bdd4a60e6116a5414239cba5943d3cf # v3.2.0
@@ -29,29 +38,40 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Login to DockerHub
-        if: ${{ !env.ACT }}
+      - name: Login to Docker Hub
+        if: env.DOCKER_HUB_USER != ''
         uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
         with:
-          username: ${{ secrets.DOCKER_HUB_USER }}
-          password: ${{ secrets.DOCKER_HUB_PASSWORD }}
+          username: ${{ env.DOCKER_HUB_USER }}
+          password: ${{ env.DOCKER_HUB_PASSWORD }}
 
       - name: Import GPG key
-        if: ${{ !env.ACT }}
+        if: env.SIGNING_KEY != ''
         id: import_gpg
         uses: crazy-max/ghaction-import-gpg@01dd5d3ca463c7f10f7f4f7b4f177225ac661ee4 # v6.1.0
         with:
-          gpg_private_key: ${{ secrets.SIGNING_KEY }}
+          gpg_private_key: ${{ env.SIGNING_KEY }}
 
-      - name: Release Helm-Docs
-        if: ${{ !env.ACT }}
+      - name: Assemble GoReleaser args
+        id: gr_args
+        run: |
+          skips=()
+          [ -z "${SIGNING_KEY}" ] && skips+=("sign")
+          [ -z "${DOCKER_HUB_USER}" ] && skips+=("publish")
+          if [ ${#skips[@]} -gt 0 ]; then
+            printf 'args=release --clean --skip=%s\n' "$(IFS=,; echo "${skips[*]}")" >> "$GITHUB_OUTPUT"
+          else
+            echo 'args=release --clean' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@286f3b13b1b49da4ac219696163fb8c1c93e1200 # v6.0.0
         env:
-          GITHUB_TOKEN: ${{ secrets.NORWOODJ_ORG_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
         with:
-          args: release
+          args: ${{ steps.gr_args.outputs.args }}
 
       - name: Cleanup
         if: always()
-        run: rm -f ${HOME}/.docker/config.json
+        run: rm -f "${HOME}/.docker/config.json"

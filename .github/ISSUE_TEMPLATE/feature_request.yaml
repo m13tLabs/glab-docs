@@ -5,7 +5,7 @@ labels:
   - "enhancement"
   - "triage"
 assignees:
-  - "norwoodj"
+  - "mreinhardt"
   - "Nepo26"
 body:
   - type: markdown

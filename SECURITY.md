@@ -9,7 +9,7 @@ please report it to us as described below.
 
 **Please do not report security vulnerabilities through public GitHub issues.**
 
-Instead, please report them in the [private vulnerability reporting](https://github.com/norwoodj/helm-docs/security/advisories).
+Instead, please report them in the [private vulnerability reporting](https://github.com/m13tLabs/glab-docs/security/advisories).
 
 If you prefer to submit without logging in, send email to [norwood.john.m@gmail.com](mailto:norwood.john.m@gmail.com) or
 [nepo26.hn@gmail.com](mailto:nepo26.hn@gmail.com).  
