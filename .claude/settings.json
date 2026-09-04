@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go build ./...)",
+      "Bash(go vet ./...)",
+      "Bash(go test ./...)",
+      "Bash(go test ./...:*)",
+      "Bash(go run ./cmd/glab-docs:*)",
+      "Bash(go mod tidy)",
+      "Bash(go mod download)",
+      "Bash(gofmt -l .)",
+      "Bash(gofmt -l ./...)",
+      "Bash(make glab-docs)",
+      "Bash(make test)",
+      "Bash(goreleaser check)",
+      "Bash(goreleaser check:*)",
+      "Bash(goreleaser build --snapshot --clean:*)",
+      "Bash(goreleaser release --snapshot --clean:*)",
+      "Bash(actionlint:*)",
+      "Bash(hadolint:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)"
+    ]
+  }
+}
