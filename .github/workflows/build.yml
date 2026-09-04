@@ -9,6 +9,40 @@ on:
   workflow_dispatch:
 
 jobs:
+  actionlint:
+    name: actionlint
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      checks: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Run actionlint
+        uses: reviewdog/action-actionlint@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          reporter: github-check
+          # actionlint's bundled action-input snapshot (even in v1.7.12) predates the
+          # `client-id` input on actions/create-github-app-token@v3. Drop these two
+          # -ignore lines once the bundled metadata catches up.
+          actionlint_flags: >-
+            -ignore 'input "client-id" is not defined in action "actions/create-github-app-token'
+            -ignore 'missing input "app-id" which is required by action "actions/create-github-app-token'
+
+  hadolint:
+    name: hadolint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Lint Dockerfile
+        uses: hadolint/hadolint-action@v3.5.0
+        with:
+          dockerfile: Dockerfile
   build:
     name: Build
     runs-on: ubuntu-latest
@@ -34,3 +68,18 @@ jobs:
         uses: goreleaser/goreleaser-action@286f3b13b1b49da4ac219696163fb8c1c93e1200 # v6.0.0
         with:
           args: build --snapshot --clean
+
+  build-results:
+    name: Build results
+    if: always()
+    runs-on: ${{ inputs.runs_on }}
+    needs: [actionlint, hadolint, build]
+    steps:
+      - run: exit 1
+        # see https://stackoverflow.com/a/67532120/4907315
+        if: >-
+          ${{
+            contains(needs.*.result, 'failure')
+            || contains(needs.*.result, 'cancelled')
+            || contains(needs.*.result, 'skipped')
+          }}

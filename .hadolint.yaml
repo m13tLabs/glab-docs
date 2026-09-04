@@ -1,0 +1,4 @@
+ignored:
+  # nextcloud-desktop-cmd is pulled from the Debian release the base image
+  # tracks; pinning its version defeats the point of following trixie.
+  - DL3008
