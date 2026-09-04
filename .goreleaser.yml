@@ -80,32 +80,5 @@ nfpms:
       {{- else if eq .Arch "arm" }}{{ .Arch }}{{ .Arm }}
       {{- else }}{{ .Arch }}{{ end }}
 
-dockers:
-  - goos: linux
-    goarch: amd64
-    dockerfile: Dockerfile
-    use: buildx
-    build_flag_templates:
-      - --platform=linux/amd64
-    image_templates:
-      - m13tlabs/glab-docs:{{ .Version }}-amd64
-      - m13tlabs/glab-docs:latest-amd64
-  - goos: linux
-    goarch: arm64
-    dockerfile: Dockerfile
-    use: buildx
-    build_flag_templates:
-      - --platform=linux/arm64
-    image_templates:
-      - m13tlabs/glab-docs:{{ .Version }}-arm64
-      - m13tlabs/glab-docs:latest-arm64
-
-docker_manifests:
-  - name_template: m13tlabs/glab-docs:{{ .Version }}
-    image_templates:
-      - m13tlabs/glab-docs:{{ .Version }}-amd64
-      - m13tlabs/glab-docs:{{ .Version }}-arm64
-  - name_template: m13tlabs/glab-docs:latest
-    image_templates:
-      - m13tlabs/glab-docs:latest-amd64
-      - m13tlabs/glab-docs:latest-arm64
+# Container images are built from the multi-stage Dockerfile by docker/build-push-action
+# in .github/workflows/release.yml, not by GoReleaser.

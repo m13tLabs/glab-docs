@@ -17,9 +17,6 @@ jobs:
       run:
         shell: bash
     env:
-      DOCKER_CLI_EXPERIMENTAL: "enabled"
-      DOCKER_HUB_USER: ${{ secrets.DOCKER_HUB_USER }}
-      DOCKER_HUB_PASSWORD: ${{ secrets.DOCKER_HUB_PASSWORD }}
       SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
     steps:
       - name: Checkout
@@ -27,23 +24,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@1f40c72289eff860ee54a304f1438e3cff362e0a # v4.3.0
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
-
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
-
-      - name: Login to Docker Hub
-        if: env.DOCKER_HUB_USER != ''
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
-        with:
-          username: ${{ env.DOCKER_HUB_USER }}
-          password: ${{ env.DOCKER_HUB_PASSWORD }}
 
       - name: Import GPG key
         if: env.SIGNING_KEY != ''
@@ -52,26 +36,58 @@ jobs:
         with:
           gpg_private_key: ${{ env.SIGNING_KEY }}
 
-      - name: Assemble GoReleaser args
-        id: gr_args
-        run: |
-          skips=()
-          [ -z "${SIGNING_KEY}" ] && skips+=("sign")
-          [ -z "${DOCKER_HUB_USER}" ] && skips+=("publish")
-          if [ ${#skips[@]} -gt 0 ]; then
-            printf 'args=release --clean --skip=%s\n' "$(IFS=,; echo "${skips[*]}")" >> "$GITHUB_OUTPUT"
-          else
-            echo 'args=release --clean' >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
         with:
-          args: ${{ steps.gr_args.outputs.args }}
+          args: release --clean ${{ env.SIGNING_KEY == '' && '--skip=sign' || '' }}
 
-      - name: Cleanup
-        if: always()
-        run: rm -f "${HOME}/.docker/config.json"
+  image:
+    name: Image
+    runs-on: ubuntu-latest
+    needs: release
+    env:
+      DOCKER_HUB_USER: ${{ secrets.DOCKER_HUB_USER }}
+      DOCKER_HUB_PASSWORD: ${{ secrets.DOCKER_HUB_PASSWORD }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@1f40c72289eff860ee54a304f1438e3cff362e0a # v4.3.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@c1e51972afc2121e065aed6d45c65596fe445f3f # v5.8.0
+        with:
+          images: m13tlabs/glab-docs
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value=latest
+
+      - name: Login to Docker Hub
+        if: env.DOCKER_HUB_USER != ''
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          username: ${{ env.DOCKER_HUB_USER }}
+          password: ${{ env.DOCKER_HUB_PASSWORD }}
+
+      - name: Build and push
+        uses: docker/build-push-action@4f58ea79222b3b9dc2c8bbdd6debcef730109a75 # v6.9.0
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: ${{ env.DOCKER_HUB_USER != '' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

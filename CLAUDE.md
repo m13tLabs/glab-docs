@@ -68,23 +68,26 @@ annotations still work and override the native fields.
 - Dropped from helm-docs: `Chart.yaml`/`requirements.yaml`, umbrella dependency values,
   `--values-file`, `--document-dependency-values`, `--badge-style`, the HTML value renderer,
   the benchmark suite.
-- The Docker image has **no `git`** — `pkg/util/ignore.go` falls back to a working-dir-relative
-  `.glabdocsignore` lookup when `git rev-parse` fails, which is the normal container case. Do
-  not re-add an unpinned `apk add` (hadolint DL3018).
+- The **`Dockerfile` is multi-stage** (`golang:1.26-alpine` builds the binary → `alpine:3.24`),
+  so `docker build .` works standalone — GoReleaser does **not** build images. The build stage
+  runs `go build -buildvcs=false` (no `.git` in the context) and takes a `VERSION` build-arg
+  (`-X main.version`). `.dockerignore` allowlists only `cmd/ pkg/ go.mod go.sum`. Neither stage
+  runs `apk add` — keep it that way (hadolint DL3018 is a *warning* and `.hadolint.yaml` sets
+  `failure-threshold: warning`). The runtime image has no `git`; `pkg/util/ignore.go` falls
+  back to a working-dir-relative `.glabdocsignore` lookup.
 
 ## CI
 
 - `.github/workflows/build.yml` — `actionlint` (reviewdog, with `-ignore` flags for the stale
   `actions/create-github-app-token` input snapshot), `hadolint`, then vet + test +
-  `goreleaser build --snapshot`. No release here.
-- `.github/workflows/release.yml` — tag `v*` / manual dispatch only. Docker Hub login and GPG
-  import are optional: a step assembles `--skip=sign,publish` when `DOCKER_HUB_USER` /
-  `SIGNING_KEY` secrets are unset, so a tag build passes before credentials are wired up.
-- `.goreleaser.yml` — `project_name: glab-docs`, `./cmd/glab-docs`, `m13tlabs/glab-docs`
-  images. Uses v1 `dockers` + `docker_manifests` (deprecation *warning* only; `dockers_v2`
-  multi-platform context did not resolve the binary). `snapshot.version_template` (not the
-  removed `name_template`).
-- `.hadolint.yaml` — just `failure-threshold: warning`.
+  `goreleaser build --snapshot` + `docker/build-push-action` (load only) + `docker run --version`
+  smoke test. No release here.
+- `.github/workflows/release.yml` — tag `v*` / manual dispatch. `release` job: GoReleaser does
+  archives / nfpm / checksums / GitHub release (`--skip=sign` when `SIGNING_KEY` is unset).
+  `image` job: `docker/metadata-action` + multi-arch `docker/build-push-action`,
+  `push: ${{ env.DOCKER_HUB_USER != '' }}` so it builds-only until Docker Hub creds exist.
+- `.goreleaser.yml` — `project_name: glab-docs`, `./cmd/glab-docs`; no `dockers:` block.
+  `snapshot.version_template` (not the removed `name_template`). `goreleaser check` is clean.
 
 ## Validating changes
 
@@ -95,8 +98,9 @@ go vet ./... && go test ./...
 go run ./cmd/glab-docs --search-root . --component-prefix gitlab.com/m13tlabs/glab-docs
 git diff example-components templates
 
-goreleaser check                       # config sanity (warns on deprecated dockers — ok)
-goreleaser release --snapshot --clean --skip=publish,sign   # full build incl. docker
+goreleaser check
+goreleaser release --snapshot --clean --skip=sign   # archives / nfpm / checksums
+docker build -t glab-docs:test --build-arg VERSION=test . && docker run --rm glab-docs:test --version
 actionlint .github/workflows/*.yml
 hadolint --config .hadolint.yaml Dockerfile
 ```
