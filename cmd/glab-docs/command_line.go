@@ -59,6 +59,7 @@ func newGlabDocsCommand(run func(cmd *cobra.Command, args []string)) (*cobra.Com
 	command.PersistentFlags().StringSliceP("documentation-strict-ignore-absent", "y", []string{}, "comma separated inputs.<name> / variables.<name> / jobs.<name> paths allowed not to be documented in strict mode")
 	command.PersistentFlags().StringSliceP("documentation-strict-ignore-absent-regex", "z", []string{}, "comma separated regexps of inputs./variables./jobs. paths allowed not to be documented in strict mode")
 	command.PersistentFlags().Bool("skip-version-footer", false, "if true the glab-docs version footer will not be shown in the default README template")
+	command.PersistentFlags().String("combined-title", "Glab Pipeline Docs", "H1 heading written above the templates when several of them are combined into one README (empty to omit it)")
 
 	viper.AutomaticEnv()
 	viper.SetEnvPrefix("GLAB_DOCS")

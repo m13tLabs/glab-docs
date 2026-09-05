@@ -1,0 +1,13 @@
+# -- Builds a container image.
+spec:
+  inputs:
+    tag:
+      default: latest
+      description: Image tag to build.
+---
+include:
+  - local: lint.yml
+
+"build-image":
+  stage: build
+  script: [ echo build ]

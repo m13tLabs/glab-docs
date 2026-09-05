@@ -94,6 +94,21 @@ The component name is the file stem, or the parent directory name for `template.
 `.gitlab-ci.yml`. The `README.md` is written into the file's own directory; use
 `-o ../README.md` to hoist it.
 
+When several component files resolve to the _same_ output path - most commonly several flat
+`templates/*.yml` siblings, which all share the `templates` directory - they're combined into one
+README instead of clobbering each other: an `--combined-title` H1 (default `Glab Pipeline Docs`,
+empty to omit it) sits at the top, and each template gets its own `##` section (one heading level
+deeper than a standalone README), with a single version footer for the whole file.
+`--component-to-generate` still works against individual files, but if it selects only some
+members of a combined group the whole group is (re)written together, so the shared file is never
+left with only a partial set of sections.
+
+A component's `include: - local: ...` entries that resolve to another documented component are
+turned into links in its Includes table - an in-page `#anchor` when both share a combined README,
+otherwise a relative link to that component's own README (with `#anchor` if it's part of a
+combined README there too). `component:`/`project:`/`remote:` includes are listed as-is, since
+they can't generally be resolved to a local file.
+
 ### The usage snippet
 
 `--component-prefix <host>/<group>/<project>` produces a real
@@ -217,4 +232,5 @@ Every flag is also settable via a `GLAB_DOCS_`-prefixed env var (dashes → unde
 | `-d, --dry-run` | `false` | print instead of write |
 | `-x / -y / -z` | off | strict mode + allowlists |
 | `--skip-version-footer` | `false` | drop the footer |
+| `--combined-title` | `Glab Pipeline Docs` | H1 above a combined multi-template README (empty to omit) |
 | `-g, --component-to-generate` | _(all)_ | limit to specific files |

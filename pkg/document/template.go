@@ -1,6 +1,7 @@
 package document
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
@@ -38,7 +39,7 @@ func getNameTemplate() string {
 func getHeaderTemplate() string {
 	b := strings.Builder{}
 	b.WriteString(`{{ define "pipeline.header" }}`)
-	b.WriteString("# {{ .Name }}")
+	b.WriteString(`{{ repeat .HeadingLevel "#" }} {{ .Name }}`)
 	b.WriteString("{{ end }}")
 	return b.String()
 }
@@ -53,7 +54,7 @@ func getDescriptionTemplate() string {
 
 func getUsageTemplate() string {
 	b := strings.Builder{}
-	b.WriteString(`{{ define "pipeline.usageHeader" }}## Usage{{ end }}`)
+	b.WriteString(`{{ define "pipeline.usageHeader" }}{{ repeat (add1 .HeadingLevel | int) "#" }} Usage{{ end }}`)
 
 	b.WriteString(`{{ define "pipeline.usageSnippet" }}`)
 	b.WriteString("```yaml\n")
@@ -80,7 +81,7 @@ func getUsageTemplate() string {
 
 func getInputsTemplate() string {
 	b := strings.Builder{}
-	b.WriteString(`{{ define "pipeline.inputsHeader" }}## Inputs{{ end }}`)
+	b.WriteString(`{{ define "pipeline.inputsHeader" }}{{ repeat (add1 .HeadingLevel | int) "#" }} Inputs{{ end }}`)
 
 	const row = "\n| {{ .Name }} | {{ .Type }} | {{ if .Required }}_required_{{ else if .Default }}{{ .Default }}{{ else }}_none_{{ end }} " +
 		"| {{ range $i, $o := .Options }}{{ if $i }}, {{ end }}`{{ $o }}`{{ end }} | {{ .Description }}{{ if .Regex }}{{ if .Description }}<br>{{ end }}Pattern: `{{ .Regex }}`{{ end }} |"
@@ -89,14 +90,14 @@ func getInputsTemplate() string {
 	b.WriteString(`{{ define "pipeline.inputsTable" }}`)
 	b.WriteString("{{ if .InputSections.Sections }}")
 	b.WriteString("{{ range .InputSections.Sections }}")
-	b.WriteString("\n\n### {{ .SectionName }}\n\n")
+	b.WriteString(`{{ "\n\n" }}{{ repeat (add $.HeadingLevel 2 | int) "#" }} {{ .SectionName }}{{ "\n\n" }}`)
 	b.WriteString(header)
 	b.WriteString("  {{- range .SectionItems }}")
 	b.WriteString(row)
 	b.WriteString("  {{- end }}")
 	b.WriteString("{{- end }}")
 	b.WriteString("{{ if .InputSections.DefaultSection.SectionItems }}")
-	b.WriteString("\n\n### {{ .InputSections.DefaultSection.SectionName }}\n\n")
+	b.WriteString(`{{ "\n\n" }}{{ repeat (add .HeadingLevel 2 | int) "#" }} {{ .InputSections.DefaultSection.SectionName }}{{ "\n\n" }}`)
 	b.WriteString(header)
 	b.WriteString("  {{- range .InputSections.DefaultSection.SectionItems }}")
 	b.WriteString(row)
@@ -123,7 +124,7 @@ func getInputsTemplate() string {
 
 func getVariablesTemplate() string {
 	b := strings.Builder{}
-	b.WriteString(`{{ define "pipeline.variablesHeader" }}## Variables{{ end }}`)
+	b.WriteString(`{{ define "pipeline.variablesHeader" }}{{ repeat (add1 .HeadingLevel | int) "#" }} Variables{{ end }}`)
 
 	b.WriteString(`{{ define "pipeline.variablesTable" }}`)
 	b.WriteString("| Variable | Default | Options | Description |\n|----------|---------|---------|-------------|")
@@ -145,7 +146,7 @@ func getVariablesTemplate() string {
 
 func getJobsTemplate() string {
 	b := strings.Builder{}
-	b.WriteString(`{{ define "pipeline.jobsHeader" }}## Jobs{{ end }}`)
+	b.WriteString(`{{ define "pipeline.jobsHeader" }}{{ repeat (add1 .HeadingLevel | int) "#" }} Jobs{{ end }}`)
 
 	b.WriteString(`{{ define "pipeline.jobsTable" }}`)
 	b.WriteString("| Job | Stage | When | Needs | Description |\n|-----|-------|------|-------|-------------|")
@@ -168,12 +169,12 @@ func getJobsTemplate() string {
 
 func getIncludesTemplate() string {
 	b := strings.Builder{}
-	b.WriteString(`{{ define "pipeline.includesHeader" }}## Includes{{ end }}`)
+	b.WriteString(`{{ define "pipeline.includesHeader" }}{{ repeat (add1 .HeadingLevel | int) "#" }} Includes{{ end }}`)
 
 	b.WriteString(`{{ define "pipeline.includesTable" }}`)
 	b.WriteString("| Type | Location | Ref |\n|------|----------|-----|")
 	b.WriteString("  {{- range .IncludeItems }}")
-	b.WriteString("\n| {{ .Kind }} | `{{ .Location }}` | {{ if .Ref }}`{{ .Ref }}`{{ end }} |")
+	b.WriteString("\n| {{ .Kind }} | {{ if .Link }}[`{{ .Location }}`]({{ .Link }}){{ else }}`{{ .Location }}`{{ end }} | {{ if .Ref }}`{{ .Ref }}`{{ end }} |")
 	b.WriteString("  {{- end }}")
 	b.WriteString("{{ end }}")
 
@@ -198,6 +199,20 @@ func getVersionFooterTemplate() string {
 	b.WriteString("{{ end }}")
 	b.WriteString("{{ end }}")
 	return b.String()
+}
+
+// renderVersionFooter renders the shared "glab-docs.versionFooter" block on its own, for
+// PrintCombinedDocumentation to append once after several components' own (footer-less) renders
+// rather than duplicating the footer markdown by hand.
+func renderVersionFooter(glabDocsVersion string) (string, error) {
+	footerTemplate := template.New("footer")
+	if _, err := footerTemplate.Parse(getVersionFooterTemplate()); err != nil {
+		return "", err
+	}
+
+	var output bytes.Buffer
+	err := footerTemplate.ExecuteTemplate(&output, "glab-docs.versionFooter", struct{ GlabDocsVersion string }{glabDocsVersion})
+	return output.String(), err
 }
 
 func getDocumentationTemplate(componentDirectory string, componentSearchRoot string, templateFiles []string) (string, error) {

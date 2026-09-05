@@ -20,7 +20,7 @@ include:
       stage: test
       strict: false
       template-files: README.md.gotmpl
-      version: 0.1.0
+      version: 0.2.1
 ```
 
 ## Inputs
@@ -39,7 +39,7 @@ include:
 | stage | string | `test` |  | Pipeline stage the generated job runs in. |
 | strict | boolean | `false` |  | Fail on undocumented inputs / variables (adds `--documentation-strict-mode`). |
 | template-files | string | `README.md.gotmpl` |  | Template file name passed to `--template-files`. |
-| version | string | `0.1.0` |  | glab-docs container image tag. |
+| version | string | `0.2.1` |  | glab-docs container image tag. |
 
 ## Jobs
 
