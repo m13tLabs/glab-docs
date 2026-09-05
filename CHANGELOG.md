@@ -1,4 +1,35 @@
 
+## [0.2.0](https://github.com/m13tLabs/renovate-config/compare/v0.1.0...v0.2.0) (2026-09-05)
+
+### Dependency Updates
+
+* **deps:** Update docker/build-push-action action to v6.19.2 ([81f83c5](https://github.com/m13tLabs/renovate-config/commit/81f83c5b226111d78c45d7622e9db47622eb87f5))
+
+* **deps:** Update docker/metadata-action action to v5.10.0 ([29dd3e6](https://github.com/m13tLabs/renovate-config/commit/29dd3e6edf51bd3ba1a8443127558b9d76a76f4d))
+
+* **deps:** Update golang docker tag to v1.27 ([0851a02](https://github.com/m13tLabs/renovate-config/commit/0851a02d5da59091255456e002b970ec74bb8b7f))
+
+* **deps:** Update docker/build-push-action action to v7 ([b84da5e](https://github.com/m13tLabs/renovate-config/commit/b84da5e5dbfe081e5e05e26386101fc470a2ca94))
+
+* **deps:** Update docker/metadata-action action to v6 ([e778c0b](https://github.com/m13tLabs/renovate-config/commit/e778c0be72df8cc7873a5b3c189aaa1d6232fafc))
+
+
+
+### Documentation
+
+* Update README ([3713730](https://github.com/m13tLabs/renovate-config/commit/3713730dd730cdc40f5ffff99c70c7cdb4d542ea))
+
+
+
+### Features
+
+* Document pipeline jobs ([1881556](https://github.com/m13tLabs/renovate-config/commit/18815562d9a98cd67c6b3d2b371a6d95e96db852))
+
+* **Gitlab:** Update image tag in gitlab component ([ed7db10](https://github.com/m13tLabs/renovate-config/commit/ed7db10e4527ed8ac5cd31c64335c47bfaa55bec))
+
+
+
+
 # [0.1.0](https://github.com/m13tLabs/glab-docs/compare/71d462776e61752769792f70a857211e4484d150...v0.1.0) (2026-09-04)
 
 
