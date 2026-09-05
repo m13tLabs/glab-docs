@@ -2,8 +2,11 @@
   <img src=".github/assets/logo.svg" alt="glab-docs" width="440">
 </p>
 
-glab-docs
-=========
+# glab-docs
+
+[![CI](https://github.com/m13tLabs/glab-docs/actions/workflows/build.yml/badge.svg)](https://github.com/m13tLabs/glab-docs/actions/workflows/build.yml)
+![Docker Pulls](https://img.shields.io/docker/pulls/m13t/glab-docs?link=https%3A%2F%2Fhub.docker.com%2Fr%2Fm13t%2Fglab-docs)
+
 
 `glab-docs` auto-generates Markdown documentation for **GitLab CI/CD components and pipelines**,
 the way [helm-docs](https://github.com/norwoodj/helm-docs) does for Helm charts. It reads a CI
@@ -61,6 +64,8 @@ make glab-docs      # produces ./glab-docs
 ```
 
 Container image: `m13tlabs/glab-docs:latest`.
+
+You can also use directly the [CI/CD component](https://gitlab.com/explore/catalog/m13tLabs/glab-docs).
 
 ## Usage
 

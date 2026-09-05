@@ -1,4 +1,4 @@
-name: Renovate Config Release
+name: Release
 
 on:
   workflow_dispatch:

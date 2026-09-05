@@ -1,4 +1,4 @@
-name: Release
+name: Deploy Release
 
 on:
   push:
@@ -80,8 +80,8 @@ jobs:
         with:
           images: m13t/glab-docs
           tags: |
-            type=raw,pattern=${{ steps.version.outputs.release_version }}
-            type=raw,pattern=${{ steps.version.outputs.release_version_minor }}
+            type=semver,pattern=${{ steps.version.outputs.release_version }}
+            type=semver,pattern=${{ steps.version.outputs.release_version_minor }}
             type=raw,value=latest
 
       - name: Login to Docker Hub
