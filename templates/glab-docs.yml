@@ -8,7 +8,7 @@ spec:
       default: m13t/glab-docs
       description: glab-docs container image, without the tag.
     version:
-      default: "0.1.0"
+      default: "0.2.0"
       description: glab-docs container image tag.
     search-root:
       default: .
