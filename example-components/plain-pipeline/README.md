@@ -23,6 +23,5 @@ Reference pipeline wiring the shared templates together.
 |------|----------|-----|
 | component | `$CI_SERVER_FQDN/m13tlabs/glab-docs/build-image@main` |  |
 | local | `/ci/lint.yml` |  |
-| project | `m13tlabs/ci-common :: /templates/scan.yml` | `v2.1.0` |
 | template | `Security/SAST.gitlab-ci.yml` |  |
 

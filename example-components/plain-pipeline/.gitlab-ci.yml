@@ -4,9 +4,6 @@ include:
     inputs:
       destination: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
   - local: /ci/lint.yml
-  - project: m13tlabs/ci-common
-    file: /templates/scan.yml
-    ref: v2.1.0
   - template: Security/SAST.gitlab-ci.yml
 
 stages:
