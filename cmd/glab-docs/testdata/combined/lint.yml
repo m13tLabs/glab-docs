@@ -1,0 +1,10 @@
+# -- Lints the Dockerfile.
+spec:
+  inputs:
+    path:
+      default: Dockerfile
+      description: Path to the Dockerfile.
+---
+"lint":
+  stage: test
+  script: [ echo lint ]

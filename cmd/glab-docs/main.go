@@ -146,24 +146,94 @@ func resolveComponentPrefix(info gitlab.ComponentDocumentationInfo) string {
 	return fmt.Sprintf("$CI_SERVER_FQDN/<path-to-project>/%s@<version>", info.Name)
 }
 
+// expandToFullOutputGroups grows toGenerate so that, whenever `--component-to-generate` selects
+// only some of several components that share an output file (e.g. one of several flat
+// `templates/*.yml` siblings), the whole group is (re)written together rather than clobbering the
+// shared file with a partial combined doc.
+func expandToFullOutputGroups(
+	toGenerate map[string]gitlab.ComponentDocumentationInfo,
+	infoByFile map[string]gitlab.ComponentDocumentationInfo,
+	allGroups map[string][]string,
+) map[string]gitlab.ComponentDocumentationInfo {
+	expanded := make(map[string]gitlab.ComponentDocumentationInfo, len(toGenerate))
+	for relFile, info := range toGenerate {
+		expanded[relFile] = info
+	}
+
+	for _, group := range allGroups {
+		if len(group) < 2 {
+			continue
+		}
+		anyRequested := false
+		for _, relFile := range group {
+			if _, ok := toGenerate[relFile]; ok {
+				anyRequested = true
+				break
+			}
+		}
+		if !anyRequested {
+			continue
+		}
+		for _, relFile := range group {
+			expanded[relFile] = infoByFile[relFile]
+		}
+	}
+
+	return expanded
+}
+
 func writeDocumentation(componentSearchRoot string, infoByFile map[string]gitlab.ComponentDocumentationInfo, dryRun bool, parallelism int) {
 	templateFiles := viper.GetStringSlice("template-files")
 	skipVersionFooter := viper.GetBool("skip-version-footer")
+	outputFileName := viper.GetString("output-file")
+	combinedTitle := viper.GetString("combined-title")
 
 	log.Debugf("Rendering from optional template files [%s]", strings.Join(templateFiles, ", "))
 
-	toGenerate := getComponentsToGenerate(infoByFile)
+	allGroups := document.GroupComponentsByOutput(infoByFile, outputFileName)
+	links := document.BuildComponentLinks(infoByFile, allGroups)
 
-	parallelProcessIterable(toGenerate, parallelism, func(elem interface{}) {
-		info := infoByFile[elem.(string)]
-		document.PrintDocumentation(
-			info,
+	toGenerate := getComponentsToGenerate(infoByFile)
+	toGenerate = expandToFullOutputGroups(toGenerate, infoByFile, allGroups)
+
+	writeGroups := document.GroupComponentsByOutput(toGenerate, outputFileName)
+	outputPaths := make([]string, 0, len(writeGroups))
+	for outputPath := range writeGroups {
+		outputPaths = append(outputPaths, outputPath)
+	}
+
+	parallelProcessIterable(outputPaths, parallelism, func(elem interface{}) {
+		outputPath := elem.(string)
+		relFiles := writeGroups[outputPath]
+
+		if len(relFiles) == 1 {
+			info := infoByFile[relFiles[0]]
+			document.PrintDocumentation(
+				info,
+				relFiles[0],
+				componentSearchRoot,
+				templateFiles,
+				dryRun,
+				version,
+				resolveComponentPrefix(info),
+				skipVersionFooter,
+				links,
+			)
+			return
+		}
+
+		document.PrintCombinedDocumentation(
+			relFiles,
+			infoByFile,
+			filepath.Dir(outputPath),
 			componentSearchRoot,
 			templateFiles,
 			dryRun,
 			version,
-			resolveComponentPrefix(info),
+			resolveComponentPrefix,
 			skipVersionFooter,
+			links,
+			combinedTitle,
 		)
 	})
 }

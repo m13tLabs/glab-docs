@@ -52,10 +52,25 @@ type componentTemplateData struct {
 	Inputs            []inputRow
 	InputSections     sections
 	Variables         []variableRow
-	IncludeItems      []gitlab.IncludeItem
+	IncludeItems      []includeRow
 	JobRows           []jobRow
 	Files             files
 	SkipVersionFooter bool
+	// HeadingLevel is the Markdown level (1 = `#`) of this component's own name heading, one
+	// level below that of its section headings (Usage/Inputs/...), two below sub-section
+	// headings (grouped `@section` inputs). It's 1 for a component rendered into its own
+	// standalone README, and higher when several components are combined into one README with
+	// a section apiece - see PrintCombinedDocumentation.
+	HeadingLevel int
+}
+
+// includeRow is one row of the pipeline's `include:` table - a gitlab.IncludeItem plus, when the
+// included file is another documented component, a Link to that component's own documentation.
+type includeRow struct {
+	Kind     string
+	Location string
+	Ref      string
+	Link     string
 }
 
 // jobRow is one row of the pipeline's Jobs table.
@@ -135,7 +150,14 @@ func groupInputSections(rows []inputRow) sections {
 	return grouped
 }
 
-func getComponentTemplateData(info gitlab.ComponentDocumentationInfo, glabDocsVersion, componentPrefix string, skipVersionFooter bool) (componentTemplateData, error) {
+func getComponentTemplateData(
+	info gitlab.ComponentDocumentationInfo,
+	relFile string,
+	glabDocsVersion, componentPrefix string,
+	skipVersionFooter bool,
+	links map[string]ComponentLink,
+	headingLevel int,
+) (componentTemplateData, error) {
 	inputRows, err := getInputRows(info.SpecInputs, info.InputDescriptions)
 	if err != nil {
 		return componentTemplateData{}, err
@@ -160,11 +182,25 @@ func getComponentTemplateData(info gitlab.ComponentDocumentationInfo, glabDocsVe
 		Inputs:                     inputRows,
 		InputSections:              groupInputSections(inputRows),
 		Variables:                  variableRows,
-		IncludeItems:               info.Includes,
+		IncludeItems:               getIncludeRows(relFile, info.Includes, links),
 		JobRows:                    getJobRows(info.Jobs),
 		Files:                      componentFiles,
 		SkipVersionFooter:          skipVersionFooter,
+		HeadingLevel:               headingLevel,
 	}, nil
+}
+
+func getIncludeRows(relFile string, items []gitlab.IncludeItem, links map[string]ComponentLink) []includeRow {
+	rows := make([]includeRow, 0, len(items))
+	for _, item := range items {
+		rows = append(rows, includeRow{
+			Kind:     item.Kind,
+			Location: item.Location,
+			Ref:      item.Ref,
+			Link:     resolveIncludeLink(relFile, item, links),
+		})
+	}
+	return rows
 }
 
 func getJobRows(jobs []gitlab.Job) []jobRow {

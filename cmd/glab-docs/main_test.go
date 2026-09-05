@@ -95,6 +95,58 @@ func TestIncludesVersionFooter(t *testing.T) {
 	}
 }
 
+func TestCombinesFlatSiblingsIntoOneReadmeWithLinkedIncludes(t *testing.T) {
+	flags := baseFlags(filepath.Join("testdata", "combined"))
+	doc := generateAndRead(t, flags, filepath.Join("testdata", "combined", "README.md"))
+
+	// One section per template, each one heading level deeper than a standalone README.
+	if strings.Count(doc, "## build\n") != 1 || strings.Count(doc, "## lint\n") != 1 {
+		t.Errorf("expected one `## build` and one `## lint` section, got:\n%s", doc)
+	}
+	// build's `local: lint.yml` include resolves to an in-page anchor, since both templates
+	// share this one combined README.
+	if !strings.Contains(doc, "[`lint.yml`](#lint)") {
+		t.Errorf("expected build's Includes table to link lint.yml to its #lint section, got:\n%s", doc)
+	}
+	// Only one version footer for the whole combined file, not one per section.
+	if strings.Count(doc, "glab-docs v1.2.3") != 1 {
+		t.Errorf("expected exactly one version footer, got:\n%s", doc)
+	}
+}
+
+func TestCombinedTitle(t *testing.T) {
+	flags := baseFlags(filepath.Join("testdata", "combined"))
+	flags["combined-title"] = "Glab Pipeline Docs"
+	doc := generateAndRead(t, flags, filepath.Join("testdata", "combined", "README.md"))
+
+	if !strings.HasPrefix(doc, "# Glab Pipeline Docs\n") {
+		t.Errorf("expected the combined README to start with the H1 title, got:\n%s", doc)
+	}
+}
+
+func TestCombinedTitleOmittedWhenEmpty(t *testing.T) {
+	flags := baseFlags(filepath.Join("testdata", "combined"))
+	flags["combined-title"] = ""
+	doc := generateAndRead(t, flags, filepath.Join("testdata", "combined", "README.md"))
+
+	if strings.HasPrefix(doc, "#\n") || strings.Contains(doc, "\n# \n") {
+		t.Errorf("expected no empty H1 when combined-title is empty, got:\n%s", doc)
+	}
+	if !strings.HasPrefix(doc, "## build\n") {
+		t.Errorf("expected the combined README to start directly with the first template's section, got:\n%s", doc)
+	}
+}
+
+func TestComponentToGenerateExpandsToFullCombinedGroup(t *testing.T) {
+	flags := baseFlags(filepath.Join("testdata", "combined"))
+	flags["component-to-generate"] = []string{"lint.yml"}
+	doc := generateAndRead(t, flags, filepath.Join("testdata", "combined", "README.md"))
+
+	if !strings.Contains(doc, "## build\n") || !strings.Contains(doc, "## lint\n") {
+		t.Errorf("requesting only lint.yml should still (re)write the whole shared README, got:\n%s", doc)
+	}
+}
+
 func TestParsesComponentInfo(t *testing.T) {
 	info, err := gitlab.ParseComponentInformation(
 		filepath.Join("testdata", "skip-version-footer", "template.yml"),
