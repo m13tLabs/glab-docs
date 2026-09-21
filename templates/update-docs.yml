@@ -19,6 +19,10 @@ spec:
     component-prefix:
       default: $CI_SERVER_FQDN/$CI_PROJECT_PATH
       description: Address prefix for the generated include snippet (`--component-prefix`).
+    before-script:
+      default: 
+        - apk add --no-cache git
+      description: Run before steps, default to install git
     template-files:
       default: README.md.gotmpl
       description: Template file name passed to `--template-files`.
@@ -54,8 +58,7 @@ spec:
     name: "$[[ inputs.image ]]:$[[ inputs.version ]]"
     entrypoint: [""]
   allow_failure: $[[ inputs.allow-failure ]]
-  before_script:
-    - apk add --no-cache git
+  before_script: $[[ inputs.before-script ]]
   script:
     - |
       set -eu
