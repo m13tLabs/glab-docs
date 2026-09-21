@@ -96,6 +96,7 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
+            VERSION=${{ steps.version.outputs.release_version }}
             APP_VERSION=${{ steps.version.outputs.release_version }}
             BUILD_DATE=${{ steps.version.outputs.build_date }}
           cache-from: type=gha
