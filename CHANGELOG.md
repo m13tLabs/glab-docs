@@ -1,4 +1,13 @@
 
+## [0.5.0](https://github.com/m13tLabs/renovate-config/compare/v0.4.0...v0.5.0) (2026-09-21)
+
+### Features
+
+* Make before_script configurable ([a1dc55b](https://github.com/m13tLabs/renovate-config/commit/a1dc55b489ecadd30b616b5a986dd981ffa266b3))
+
+
+
+
 ## [0.4.0](https://github.com/m13tLabs/renovate-config/compare/v0.3.0...v0.4.0) (2026-09-21)
 
 ### Dependency Updates
