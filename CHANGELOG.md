@@ -1,4 +1,25 @@
 
+## [0.4.0](https://github.com/m13tLabs/renovate-config/compare/v0.3.0...v0.4.0) (2026-09-21)
+
+### Dependency Updates
+
+* **deps:** Update docker/setup-buildx-action action to v4.4.0 ([3fb2eb1](https://github.com/m13tLabs/renovate-config/commit/3fb2eb14654f77d4a0752e1ce23a08a712d5b328))
+
+* **deps:** Update docker/build-push-action action to v7.4.0 ([1432095](https://github.com/m13tLabs/renovate-config/commit/14320958208f80cc29fb8001e46e0a67f2b79810))
+
+* **deps:** Update docker/setup-qemu-action action to v4.4.0 ([d0f2f40](https://github.com/m13tLabs/renovate-config/commit/d0f2f40286f66fd143acdd125381a5557d472533))
+
+* **deps:** Update docker/setup-buildx-action action to v4.4.1 ([dcf8df1](https://github.com/m13tLabs/renovate-config/commit/dcf8df1469e59721fd53a054514696978a798197))
+
+
+
+### Features
+
+* **Jobs:** Allow to document hidden jobs ([48460a2](https://github.com/m13tLabs/renovate-config/commit/48460a2821fda25a1003fd9d9a2849f76d43f070))
+
+
+
+
 ## [0.3.0](https://github.com/m13tLabs/renovate-config/compare/v0.2.1...v0.3.0) (2026-09-07)
 
 ### Features
