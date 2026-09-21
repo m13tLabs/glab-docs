@@ -206,8 +206,8 @@ func getIncludeRows(relFile string, items []gitlab.IncludeItem, links map[string
 func getJobRows(jobs []gitlab.Job) []jobRow {
 	rows := make([]jobRow, 0, len(jobs))
 	for _, j := range jobs {
-		if j.Hidden {
-			continue // `.hidden` jobs are templates/anchors, not part of the pipeline
+		if j.Hidden && j.Description == "" {
+			continue // undocumented `.hidden` jobs are templates/anchors, not part of the pipeline
 		}
 		rows = append(rows, jobRow{
 			Name:        j.Name,

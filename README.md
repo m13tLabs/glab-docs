@@ -5,7 +5,7 @@
 # glab-docs
 
 [![CI](https://github.com/m13tLabs/glab-docs/actions/workflows/build.yml/badge.svg)](https://github.com/m13tLabs/glab-docs/actions/workflows/build.yml)
-![Docker Pulls](https://img.shields.io/docker/pulls/m13t/glab-docs?link=https%3A%2F%2Fhub.docker.com%2Fr%2Fm13t%2Fglab-docs)
+[![Docker Pulls](https://img.shields.io/docker/pulls/m13t/glab-docs)](https://hub.docker.com/r/m13t/glab-docs)
 
 
 `glab-docs` auto-generates Markdown documentation for **GitLab CI/CD components and pipelines**,
@@ -128,7 +128,9 @@ emitted for files that declare `spec:inputs:`.
 Every top-level key that isn't a reserved GitLab keyword is treated as a **job** and listed in
 a Jobs table with its `stage`, `when` (or `rules` / `only`/`except`), `needs`, `extends` and a
 `# --` description comment. Jobs are ordered by the pipeline's `stages:` (or GitLab's implicit
-order). Hidden jobs (`.name`) are skipped.
+order). Hidden jobs (`.name`) are skipped unless they carry a `# --` description comment, in
+which case they're listed like any other job (still ranked first, ahead of the `stages:`
+order, since they're templates/anchors rather than pipeline stages).
 
 ```yaml
 stages: [test, deploy]
