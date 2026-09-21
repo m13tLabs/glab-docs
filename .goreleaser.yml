@@ -50,6 +50,16 @@ changelog:
       - "^docs:"
       - "^test:"
 
+# .github/workflows/release.yml already creates the GitHub release as a draft before
+# pushing the tag (title = the version, no "v" prefix; notes from git-cliff). Attach
+# artifacts to that existing draft instead of creating a second, duplicate release for
+# the same tag, then publish it once uploads finish. name_template must match the title
+# release.yml sets ("$RELEASE_VERSION"), since GoReleaser looks up the draft by name.
+release:
+  name_template: "{{ .Version }}"
+  use_existing_draft: true
+  draft: false
+
 # Only runs when the Release workflow imports a GPG key (SIGNING_KEY secret set);
 # otherwise the workflow passes --skip=sign.
 signs:
