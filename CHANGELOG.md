@@ -1,4 +1,19 @@
 
+## [0.6.0](https://github.com/m13tLabs/renovate-config/compare/v0.5.0...v0.6.0) (2026-09-22)
+
+### Bug Fixes
+
+* **Release:** Pass version info correctly ([4da38f7](https://github.com/m13tLabs/renovate-config/commit/4da38f7305186de628eddcefbd7b5c2b78b0636a))
+
+
+
+### Features
+
+* **README:** Auto-Link to referenced gitlab projects in README ([c1115e5](https://github.com/m13tLabs/renovate-config/commit/c1115e59c323a53698f6ba3f282d121cde65fc68))
+
+
+
+
 ## [0.5.0](https://github.com/m13tLabs/renovate-config/compare/v0.4.0...v0.5.0) (2026-09-21)
 
 ### Features
