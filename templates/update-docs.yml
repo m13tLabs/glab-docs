@@ -17,11 +17,18 @@ spec:
       default: ""
       description: Comma-separated `--search-pattern` globs. Empty keeps the built-in defaults.
     component-prefix:
-      default: $CI_SERVER_FQDN/$CI_PROJECT_PATH
-      description: Address prefix for the generated include snippet (`--component-prefix`).
+      default: ""
+      description: Address prefix override for the generated include snippet (`--component-prefix`). Empty resolves the project path automatically (from `$CI_PROJECT_PATH`) behind a literal `$CI_SERVER_FQDN` placeholder.
+    gitlab-server-url:
+      default: $CI_SERVER_URL
+      description: GitLab server base URL used to resolve `$CI_SERVER_FQDN` in documented `component:` includes and link them to their source project (`--gitlab-server-url`).
     before-script:
       default: 
-        - apk add --no-cache git
+        - |
+          set -eu
+          if [ "$[[ inputs.mode ]]" = "check" ]; then
+            apk add --no-cache git
+          fi
       description: Run before steps, default to install git
     template-files:
       default: README.md.gotmpl
@@ -67,6 +74,9 @@ spec:
       args="$args --template-files=$[[ inputs.template-files ]]"
       if [ -n "$[[ inputs.component-prefix ]]" ]; then
         args="$args --component-prefix=$[[ inputs.component-prefix ]]"
+      fi
+      if [ -n "$[[ inputs.gitlab-server-url ]]" ]; then
+        args="$args --gitlab-server-url=$[[ inputs.gitlab-server-url ]]"
       fi
       if [ -n "$[[ inputs.search-pattern ]]" ]; then
         args="$args --search-pattern=$[[ inputs.search-pattern ]]"

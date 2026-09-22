@@ -17,6 +17,7 @@ import (
 
 	"github.com/m13tLabs/glab-docs/pkg/document"
 	"github.com/m13tLabs/glab-docs/pkg/gitlab"
+	"github.com/m13tLabs/glab-docs/pkg/util"
 )
 
 // parallelProcessIterable runs visitFn on each element of the iterable (slice or map key) using
@@ -143,7 +144,22 @@ func resolveComponentPrefix(info gitlab.ComponentDocumentationInfo) string {
 	if prefix != "" {
 		return fmt.Sprintf("%s/%s@<version>", strings.TrimRight(prefix, "/"), info.Name)
 	}
-	return fmt.Sprintf("$CI_SERVER_FQDN/<path-to-project>/%s@<version>", info.Name)
+	return fmt.Sprintf("$CI_SERVER_FQDN/%s/%s@<version>", resolveProjectPath(), info.Name)
+}
+
+// resolveProjectPath finds this repository's own group/project path, for the fallback usage
+// snippet address - $CI_PROJECT_PATH when running as a real GitLab CI job, otherwise the local
+// git remote (so a local `glab-docs` run, e.g. to preview docs before committing per the `check`
+// mode's own advice, produces the same address CI would). A literal "<path-to-project>"
+// placeholder is used when neither is available.
+func resolveProjectPath() string {
+	if projectPath := os.Getenv("CI_PROJECT_PATH"); projectPath != "" {
+		return projectPath
+	}
+	if projectPath, err := util.FindGitProjectPath(); err == nil && projectPath != "" {
+		return projectPath
+	}
+	return "<path-to-project>"
 }
 
 // expandToFullOutputGroups grows toGenerate so that, whenever `--component-to-generate` selects

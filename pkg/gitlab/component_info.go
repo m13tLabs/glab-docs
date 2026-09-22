@@ -40,8 +40,12 @@ type ValueDescription struct {
 type IncludeItem struct {
 	// Kind is one of component, local, project, remote, template.
 	Kind string
-	// Location is the component address / file path / URL / template name.
+	// Location is the component address / project path / file path / URL / template name.
 	Location string
+	// File is the `file:` path within Location for a project include (empty otherwise). Kept
+	// separate from Location, rather than folded into it, so callers can still link straight to
+	// the file (e.g. its blob at Ref) instead of just the project root.
+	File string
 	// Ref is the git ref for project includes (empty otherwise).
 	Ref string
 }
@@ -169,7 +173,16 @@ func parseIncludes(includeNode *yaml.Node) []IncludeItem {
 				v := entry.Content[i+1].Value
 				switch k {
 				case "component":
-					item.Kind, item.Location = "component", v
+					// A component address is always `<host/path/to/component>@<ref>`
+					// (https://docs.gitlab.com/ci/components/#use-a-component) - unlike `project:`
+					// includes, there's no separate `ref:` key, so split it out here to populate
+					// the Ref column instead of leaving it embedded in Location.
+					item.Kind = "component"
+					if loc, ref, found := strings.Cut(v, "@"); found {
+						item.Location, item.Ref = loc, ref
+					} else {
+						item.Location = v
+					}
 				case "local":
 					item.Kind, item.Location = "local", v
 				case "remote":
@@ -185,11 +198,7 @@ func parseIncludes(includeNode *yaml.Node) []IncludeItem {
 					if item.Kind == "" || item.Kind == "project" {
 						item.Kind = "project"
 					}
-					if item.Location != "" {
-						item.Location += " :: " + v
-					} else {
-						item.Location = v
-					}
+					item.File = v
 				case "ref":
 					item.Ref = v
 				}

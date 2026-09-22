@@ -2,6 +2,7 @@ package document
 
 import (
 	"sort"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
@@ -191,13 +192,22 @@ func getComponentTemplateData(
 }
 
 func getIncludeRows(relFile string, items []gitlab.IncludeItem, links map[string]ComponentLink) []includeRow {
+	serverURL := strings.TrimRight(viper.GetString("gitlab-server-url"), "/")
+
 	rows := make([]includeRow, 0, len(items))
 	for _, item := range items {
+		location, link := item.Location, resolveIncludeLink(relFile, item, links)
+		switch item.Kind {
+		case "component":
+			location, link = resolveComponentLocation(item.Location, serverURL)
+		case "project":
+			location, link = resolveProjectLocation(item, serverURL)
+		}
 		rows = append(rows, includeRow{
 			Kind:     item.Kind,
-			Location: item.Location,
+			Location: location,
 			Ref:      item.Ref,
-			Link:     resolveIncludeLink(relFile, item, links),
+			Link:     link,
 		})
 	}
 	return rows

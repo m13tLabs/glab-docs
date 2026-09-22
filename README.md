@@ -106,15 +106,20 @@ left with only a partial set of sections.
 A component's `include: - local: ...` entries that resolve to another documented component are
 turned into links in its Includes table - an in-page `#anchor` when both share a combined README,
 otherwise a relative link to that component's own README (with `#anchor` if it's part of a
-combined README there too). `component:`/`project:`/`remote:` includes are listed as-is, since
-they can't generally be resolved to a local file.
+combined README there too). `project:` and `component:` includes are also linked when
+`--gitlab-server-url` is set (see below); `project:` links straight to the included `file:`'s blob
+at its `ref:` when one is given, otherwise to the project root. `remote:`/`template:` includes are
+listed as-is, since they can't be resolved to a project on the same GitLab instance.
 
 ### The usage snippet
 
 `--component-prefix <host>/<group>/<project>` produces a real
-`include: - component: <prefix>/<name>@<version>` block. Without it a
-`$CI_SERVER_FQDN/<path-to-project>/<name>@<version>` placeholder is used. The snippet is only
-emitted for files that declare `spec:inputs:`.
+`include: - component: <prefix>/<name>@<version>` block. Without it, the project path is resolved
+automatically - from `$CI_PROJECT_PATH` when running as a GitLab CI job, otherwise from the local
+git remote - behind a literal `$CI_SERVER_FQDN` placeholder:
+`$CI_SERVER_FQDN/<project-path>/<name>@<version>` (falling back to a literal `<path-to-project>`
+placeholder when neither is available). The snippet is only emitted for files that declare
+`spec:inputs:`.
 
 ## Documenting inputs, variables and jobs
 
@@ -229,6 +234,7 @@ Every flag is also settable via a `GLAB_DOCS_`-prefixed env var (dashes → unde
 | `-o, --output-file` | `README.md` | output path relative to each file's directory |
 | `-t, --template-files` | `README.md.gotmpl` | extra templates |
 | `--component-prefix` | _(empty)_ | include-snippet address prefix |
+| `--gitlab-server-url` | _(empty)_ | resolves a literal `$CI_SERVER_FQDN` in documented `component:` includes and links them to their source project |
 | `-s, --sort-values-order` | `alphanum` | `alphanum` or `file` |
 | `-i, --ignore-file` | `.glabdocsignore` | ignore file name |
 | `-d, --dry-run` | `false` | print instead of write |

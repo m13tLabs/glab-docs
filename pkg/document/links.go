@@ -1,6 +1,7 @@
 package document
 
 import (
+	"fmt"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -107,4 +108,51 @@ func resolveIncludeLink(fromRelFile string, item gitlab.IncludeItem, links map[s
 		rel += "#" + target.Anchor
 	}
 	return rel
+}
+
+// ciServerFQDNPlaceholder is the predefined GitLab CI/CD variable authors commonly hardcode at
+// the front of a `component:` include address (GitLab itself only resolves it at pipeline
+// runtime), rather than using this tool's own --component-prefix. glab-docs sees it as literal
+// text when parsing the source YAML.
+const ciServerFQDNPlaceholder = "$CI_SERVER_FQDN"
+
+// resolveComponentLocation strips a literal "$CI_SERVER_FQDN/" prefix from a `component:` include
+// address for display and, when serverURL is configured (--gitlab-server-url), resolves it into a
+// link back to the source project. serverURL is expected caller-trimmed of any trailing slash.
+func resolveComponentLocation(location, serverURL string) (displayLocation, link string) {
+	if !strings.HasPrefix(location, ciServerFQDNPlaceholder) {
+		return location, ""
+	}
+
+	path := strings.TrimPrefix(strings.TrimPrefix(location, ciServerFQDNPlaceholder), "/")
+	if serverURL == "" {
+		return location, ""
+	}
+	return path, serverURL + "/" + path
+}
+
+// resolveProjectLocation builds the display text and, when serverURL is configured
+// (--gitlab-server-url), the link for a `project:` include - appending "(file: ...)" to the
+// display text when the include also names a `file:`, and linking straight to that file's blob
+// at Ref (falling back to "HEAD" when no `ref:` was given) rather than just the project root.
+// serverURL is expected caller-trimmed of any trailing slash.
+func resolveProjectLocation(item gitlab.IncludeItem, serverURL string) (displayLocation, link string) {
+	displayLocation = item.Location
+	if item.File != "" {
+		displayLocation = fmt.Sprintf("%s (file: %s)", item.Location, item.File)
+	}
+
+	if serverURL == "" || item.Location == "" {
+		return displayLocation, ""
+	}
+
+	link = serverURL + "/" + strings.TrimPrefix(item.Location, "/")
+	if item.File != "" {
+		ref := item.Ref
+		if ref == "" {
+			ref = "HEAD"
+		}
+		link += "/-/blob/" + ref + "/" + strings.TrimPrefix(item.File, "/")
+	}
+	return displayLocation, link
 }
