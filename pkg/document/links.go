@@ -118,8 +118,18 @@ const ciServerFQDNPlaceholder = "$CI_SERVER_FQDN"
 
 // resolveComponentLocation strips a literal "$CI_SERVER_FQDN/" prefix from a `component:` include
 // address for display and, when serverURL is configured (--gitlab-server-url), resolves it into a
-// link back to the source project. serverURL is expected caller-trimmed of any trailing slash.
-func resolveComponentLocation(location, serverURL string) (displayLocation, link string) {
+// link straight to the component's source file rather than just the raw address (which isn't
+// itself a browsable path - GitLab CI/CD components live under a project's `templates/`
+// directory, per https://docs.gitlab.com/ci/components/#directory-structure). Per that same
+// address format, the address's last path segment is always the component name and everything
+// before it the project path, so the file is linked as `templates/<component-name>.yml`;
+// glab-docs itself uses that flat layout (see templates/*.yml in this repo), which is also
+// GitLab's simpler/more common convention over the alternative `templates/<name>/template.yml`
+// subdirectory form, so it's the best default guess for an external, undocumented project. Ref
+// (falling back to "HEAD" when no `ref:`/`@<ref>` was given) is used as the blob's ref. serverURL
+// is expected caller-trimmed of any trailing slash.
+func resolveComponentLocation(item gitlab.IncludeItem, serverURL string) (displayLocation, link string) {
+	location := item.Location
 	if !strings.HasPrefix(location, ciServerFQDNPlaceholder) {
 		return location, ""
 	}
@@ -128,7 +138,20 @@ func resolveComponentLocation(location, serverURL string) (displayLocation, link
 	if serverURL == "" {
 		return location, ""
 	}
-	return path, serverURL + "/" + path
+
+	idx := strings.LastIndex(path, "/")
+	// no "/" at all means a single-segment address, which isn't a valid project path on its own
+	// - link to it as-is rather than guessing at a file that can't exist.
+	if idx == -1 {
+		return path, serverURL + "/" + path
+	}
+	projectPath, componentName := path[:idx], path[idx+1:]
+
+	ref := item.Ref
+	if ref == "" {
+		ref = "HEAD"
+	}
+	return path, fmt.Sprintf("%s/%s/-/blob/%s/templates/%s.yml", serverURL, projectPath, ref, componentName)
 }
 
 // resolveProjectLocation builds the display text and, when serverURL is configured

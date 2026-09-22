@@ -108,8 +108,12 @@ turned into links in its Includes table - an in-page `#anchor` when both share a
 otherwise a relative link to that component's own README (with `#anchor` if it's part of a
 combined README there too). `project:` and `component:` includes are also linked when
 `--gitlab-server-url` is set (see below); `project:` links straight to the included `file:`'s blob
-at its `ref:` when one is given, otherwise to the project root. `remote:`/`template:` includes are
-listed as-is, since they can't be resolved to a project on the same GitLab instance.
+at its `ref:` when one is given, otherwise to the project root; `component:` links to
+`templates/<component-name>.yml` at its `@<ref>` (or `HEAD` when unpinned) - the component
+address's project path isn't itself a browsable file, and glab-docs' own flat `templates/*.yml`
+layout is assumed since the alternative `templates/<name>/template.yml` form can't be told apart
+from the address alone. `remote:`/`template:` includes are listed as-is, since they can't be
+resolved to a project on the same GitLab instance.
 
 ### The usage snippet
 

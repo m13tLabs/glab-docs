@@ -3,6 +3,7 @@ package document
 import (
 	"testing"
 
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/m13tLabs/glab-docs/pkg/gitlab"
@@ -98,4 +99,179 @@ func TestResolveIncludeLink(t *testing.T) {
 func TestMarkdownAnchor(t *testing.T) {
 	assert.Equal(t, "build-image", markdownAnchor("Build Image"))
 	assert.Equal(t, "scan_security-fast", markdownAnchor("scan_security (fast)!"))
+}
+
+func TestResolveComponentLocation(t *testing.T) {
+	t.Run("no server url configured leaves the address as-is, unlinked", func(t *testing.T) {
+		location, link := resolveComponentLocation(gitlab.IncludeItem{
+			Kind:     "component",
+			Location: "$CI_SERVER_FQDN/infra/jobs/gitlab-components/glab-docs/update-docs",
+			Ref:      "v0.5.0",
+		}, "")
+		assert.Equal(t, "$CI_SERVER_FQDN/infra/jobs/gitlab-components/glab-docs/update-docs", location)
+		assert.Equal(t, "", link)
+	})
+
+	t.Run("address without the $CI_SERVER_FQDN placeholder is left alone even with a server url", func(t *testing.T) {
+		location, link := resolveComponentLocation(gitlab.IncludeItem{
+			Kind:     "component",
+			Location: "gitlab.com/my-group/my-project/my-component",
+			Ref:      "1.0.0",
+		}, "https://gitlab.example.com")
+		assert.Equal(t, "gitlab.com/my-group/my-project/my-component", location)
+		assert.Equal(t, "", link)
+	})
+
+	t.Run("resolves to the component's source file at its ref, not the raw address", func(t *testing.T) {
+		// Regression test: linking to the raw address (.../glab-docs/update-docs) 404s, since
+		// that's not a real browsable path - only .../glab-docs (the project) is, and the
+		// component's file lives under its templates/ directory.
+		location, link := resolveComponentLocation(gitlab.IncludeItem{
+			Kind:     "component",
+			Location: "$CI_SERVER_FQDN/infra/jobs/gitlab-components/glab-docs/update-docs",
+			Ref:      "v0.5.0",
+		}, "https://gitlab.example.com")
+		assert.Equal(t, "infra/jobs/gitlab-components/glab-docs/update-docs", location)
+		assert.Equal(t, "https://gitlab.example.com/infra/jobs/gitlab-components/glab-docs/-/blob/v0.5.0/templates/update-docs.yml", link)
+	})
+
+	t.Run("falls back to HEAD when the include has no ref", func(t *testing.T) {
+		_, link := resolveComponentLocation(gitlab.IncludeItem{
+			Kind:     "component",
+			Location: "$CI_SERVER_FQDN/infra/jobs/gitlab-components/glab-docs/update-docs",
+		}, "https://gitlab.example.com")
+		assert.Equal(t, "https://gitlab.example.com/infra/jobs/gitlab-components/glab-docs/-/blob/HEAD/templates/update-docs.yml", link)
+	})
+
+	t.Run("only the last path segment is treated as the component name, however deep the project group nesting", func(t *testing.T) {
+		_, link := resolveComponentLocation(gitlab.IncludeItem{
+			Kind:     "component",
+			Location: "$CI_SERVER_FQDN/a/b/c/d/component-name",
+			Ref:      "1.0.0",
+		}, "https://gitlab.example.com")
+		assert.Equal(t, "https://gitlab.example.com/a/b/c/d/-/blob/1.0.0/templates/component-name.yml", link)
+	})
+
+	t.Run("single-segment address can't be split into a project and component - linked as-is", func(t *testing.T) {
+		location, link := resolveComponentLocation(gitlab.IncludeItem{
+			Kind:     "component",
+			Location: "$CI_SERVER_FQDN/only-one-segment",
+			Ref:      "1.0.0",
+		}, "https://gitlab.example.com")
+		assert.Equal(t, "only-one-segment", location)
+		assert.Equal(t, "https://gitlab.example.com/only-one-segment", link)
+	})
+}
+
+func TestResolveProjectLocation(t *testing.T) {
+	t.Run("no server url configured leaves the location as-is, unlinked", func(t *testing.T) {
+		location, link := resolveProjectLocation(gitlab.IncludeItem{
+			Kind:     "project",
+			Location: "infra/jobs/gitlab-components/helpers",
+			File:     "gitlab-ci/include.yml",
+			Ref:      "v0.6.1",
+		}, "")
+		assert.Equal(t, "infra/jobs/gitlab-components/helpers (file: gitlab-ci/include.yml)", location)
+		assert.Equal(t, "", link)
+	})
+
+	t.Run("without a file: links to the project root", func(t *testing.T) {
+		location, link := resolveProjectLocation(gitlab.IncludeItem{
+			Kind:     "project",
+			Location: "infra/jobs/gitlab-components/helpers",
+			Ref:      "v0.6.1",
+		}, "https://gitlab.example.com")
+		assert.Equal(t, "infra/jobs/gitlab-components/helpers", location)
+		assert.Equal(t, "https://gitlab.example.com/infra/jobs/gitlab-components/helpers", link)
+	})
+
+	t.Run("with a file: appends it to the display text and links straight to its blob at ref", func(t *testing.T) {
+		location, link := resolveProjectLocation(gitlab.IncludeItem{
+			Kind:     "project",
+			Location: "infra/jobs/gitlab-components/helpers",
+			File:     "gitlab-ci/include.yml",
+			Ref:      "v0.6.1",
+		}, "https://gitlab.example.com")
+		assert.Equal(t, "infra/jobs/gitlab-components/helpers (file: gitlab-ci/include.yml)", location)
+		assert.Equal(t, "https://gitlab.example.com/infra/jobs/gitlab-components/helpers/-/blob/v0.6.1/gitlab-ci/include.yml", link)
+	})
+
+	t.Run("file: blob link falls back to HEAD when the include has no ref", func(t *testing.T) {
+		_, link := resolveProjectLocation(gitlab.IncludeItem{
+			Kind:     "project",
+			Location: "infra/jobs/gitlab-components/helpers",
+			File:     "gitlab-ci/include.yml",
+		}, "https://gitlab.example.com")
+		assert.Equal(t, "https://gitlab.example.com/infra/jobs/gitlab-components/helpers/-/blob/HEAD/gitlab-ci/include.yml", link)
+	})
+
+	t.Run("empty location is left unlinked even with a server url", func(t *testing.T) {
+		location, link := resolveProjectLocation(gitlab.IncludeItem{Kind: "project"}, "https://gitlab.example.com")
+		assert.Equal(t, "", location)
+		assert.Equal(t, "", link)
+	})
+}
+
+// TestGetIncludeRows exercises getIncludeRows itself, not just the per-kind resolvers it calls -
+// this is what actually reads --gitlab-server-url (via viper) and dispatches on item.Kind, so a
+// typo'd viper key or a swapped case label wouldn't be caught by testing the resolvers alone.
+func TestGetIncludeRows(t *testing.T) {
+	setGitlabServerURL := func(t *testing.T, url string) {
+		t.Helper()
+		viper.Set("gitlab-server-url", url)
+		t.Cleanup(func() { viper.Set("gitlab-server-url", "") })
+	}
+
+	items := []gitlab.IncludeItem{
+		{Kind: "local", Location: "templates/lint.yml"},
+		{Kind: "project", Location: "infra/jobs/gitlab-components/helpers", File: "gitlab-ci/include.yml", Ref: "v0.6.1"},
+		{Kind: "component", Location: "$CI_SERVER_FQDN/infra/jobs/gitlab-components/glab-docs/update-docs", Ref: "v0.5.0"},
+		{Kind: "remote", Location: "https://example.com/some.yml"},
+	}
+	links := map[string]ComponentLink{
+		"templates/build.yml": {OutputPath: "templates/README.md", Anchor: "build"},
+		"templates/lint.yml":  {OutputPath: "templates/README.md", Anchor: "lint"},
+	}
+
+	t.Run("without a server url, only local includes are linked", func(t *testing.T) {
+		setGitlabServerURL(t, "")
+		rows := getIncludeRows("templates/build.yml", items, links)
+
+		assert.Equal(t, []includeRow{
+			{Kind: "local", Location: "templates/lint.yml", Link: "#lint"},
+			{Kind: "project", Location: "infra/jobs/gitlab-components/helpers (file: gitlab-ci/include.yml)", Ref: "v0.6.1"},
+			{Kind: "component", Location: "$CI_SERVER_FQDN/infra/jobs/gitlab-components/glab-docs/update-docs", Ref: "v0.5.0"},
+			{Kind: "remote", Location: "https://example.com/some.yml"},
+		}, rows)
+	})
+
+	t.Run("with a server url, project and component includes are also linked", func(t *testing.T) {
+		setGitlabServerURL(t, "https://gitlab.example.com")
+		rows := getIncludeRows("templates/build.yml", items, links)
+
+		assert.Equal(t, []includeRow{
+			{Kind: "local", Location: "templates/lint.yml", Link: "#lint"},
+			{
+				Kind:     "project",
+				Location: "infra/jobs/gitlab-components/helpers (file: gitlab-ci/include.yml)",
+				Ref:      "v0.6.1",
+				Link:     "https://gitlab.example.com/infra/jobs/gitlab-components/helpers/-/blob/v0.6.1/gitlab-ci/include.yml",
+			},
+			{
+				Kind:     "component",
+				Location: "infra/jobs/gitlab-components/glab-docs/update-docs",
+				Ref:      "v0.5.0",
+				Link:     "https://gitlab.example.com/infra/jobs/gitlab-components/glab-docs/-/blob/v0.5.0/templates/update-docs.yml",
+			},
+			{Kind: "remote", Location: "https://example.com/some.yml"},
+		}, rows)
+	})
+
+	t.Run("a trailing slash on the server url doesn't produce a double slash in links", func(t *testing.T) {
+		setGitlabServerURL(t, "https://gitlab.example.com/")
+		rows := getIncludeRows("templates/build.yml", items, links)
+
+		assert.Equal(t, "https://gitlab.example.com/infra/jobs/gitlab-components/helpers/-/blob/v0.6.1/gitlab-ci/include.yml", rows[1].Link)
+		assert.Equal(t, "https://gitlab.example.com/infra/jobs/gitlab-components/glab-docs/-/blob/v0.5.0/templates/update-docs.yml", rows[2].Link)
+	})
 }

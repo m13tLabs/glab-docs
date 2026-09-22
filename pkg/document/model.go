@@ -199,7 +199,7 @@ func getIncludeRows(relFile string, items []gitlab.IncludeItem, links map[string
 		location, link := item.Location, resolveIncludeLink(relFile, item, links)
 		switch item.Kind {
 		case "component":
-			location, link = resolveComponentLocation(item.Location, serverURL)
+			location, link = resolveComponentLocation(item, serverURL)
 		case "project":
 			location, link = resolveProjectLocation(item, serverURL)
 		}
