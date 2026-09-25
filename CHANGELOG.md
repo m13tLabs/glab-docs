@@ -1,4 +1,21 @@
 
+## [1.0.0](https://github.com/m13tLabs/renovate-config/compare/v0.6.0...v1.0.0) (2026-09-25)
+
+### Bug Fixes
+
+* **Links:** Correcting component linking ([1f84618](https://github.com/m13tLabs/renovate-config/commit/1f84618950b3d0ac6d12a2b1fe10fa4ba1cf82ba))
+
+
+
+### Features
+
+* **Includes:** Include details about includes on overview table ([af3dd5e](https://github.com/m13tLabs/renovate-config/commit/af3dd5eae81d126e25afce71a17f48124aec010b))
+
+* **Include:** Add also project details ([888bc5a](https://github.com/m13tLabs/renovate-config/commit/888bc5add0bcada24311d4b09c04c3e1e7664bd2))
+
+
+
+
 ## [0.6.0](https://github.com/m13tLabs/renovate-config/compare/v0.5.0...v0.6.0) (2026-09-22)
 
 ### Bug Fixes
