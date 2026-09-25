@@ -48,6 +48,9 @@ type IncludeItem struct {
 	File string
 	// Ref is the git ref for project includes (empty otherwise).
 	Ref string
+	// Summary is what the included file adds to the pipeline, filled in by IncludeResolver when
+	// --include-details is on and the include could be resolved; nil otherwise.
+	Summary *IncludeSummary
 }
 
 // Job is a single job defined in a pipeline body.
@@ -458,15 +461,9 @@ func fileLeadingDescription(contents []byte, docs []*yaml.Node) string {
 // parseFileComments scans the raw file for old-style `# key -- description` annotations. New-style
 // `# --` comments attached to a specific input/variable are picked up from the YAML node's
 // HeadComment in the document package instead.
-func parseFileComments(sourceFile string) (map[string]ValueDescription, error) {
-	f, err := os.Open(sourceFile)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
+func parseFileComments(contents []byte) (map[string]ValueDescription, error) {
 	keyToDescriptions := make(map[string]ValueDescription)
-	scanner := bufio.NewScanner(f)
+	scanner := bufio.NewScanner(bytes.NewReader(contents))
 	foundComment := false
 	commentLines := make([]string, 0)
 
@@ -626,6 +623,14 @@ func ParseComponentInformation(sourceFile string, config DocumentationParsingCon
 		return info, err
 	}
 
+	return parseComponentContents(info, contents, config)
+}
+
+// parseComponentContents does the actual parsing for ParseComponentInformation, on contents
+// already read into memory - so an included file fetched from another project (see
+// include_resolver.go) goes through the very same code path as one read from disk.
+func parseComponentContents(info ComponentDocumentationInfo, contents []byte, config DocumentationParsingConfig) (ComponentDocumentationInfo, error) {
+	sourceFile := info.SourceFile
 	docs, err := decodeAllDocuments(contents)
 	if err != nil {
 		return info, err
@@ -659,7 +664,7 @@ func ParseComponentInformation(sourceFile string, config DocumentationParsingCon
 	info.Stages = parseStages(findMapValue(bodyRoot, "stages"))
 	info.Description = fileLeadingDescription(contents, docs)
 
-	fileComments, err := parseFileComments(sourceFile)
+	fileComments, err := parseFileComments(contents)
 	if err != nil {
 		return info, err
 	}

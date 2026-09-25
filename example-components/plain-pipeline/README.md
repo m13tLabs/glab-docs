@@ -19,9 +19,9 @@ Reference pipeline wiring the shared templates together.
 
 ## Includes
 
-| Type | Location | Ref |
-|------|----------|-----|
-| component | `$CI_SERVER_FQDN/m13tlabs/glab-docs/build-image@main` |  |
-| local | `/ci/lint.yml` |  |
-| template | `Security/SAST.gitlab-ci.yml` |  |
+| Type | Location | Ref | Description |
+|------|----------|-----|-------------|
+| component | `$CI_SERVER_FQDN/m13tlabs/glab-docs/build-image` | `main` | Builds a container image with Kaniko and pushes it to the project registry.<br>**Variables:**<ul><li>`CI_DEBUG` = `true` - Enable this to enable debug logging in Gitlab</li></ul>**Jobs:**<ul><li>`build-image` - Build Dockerfile with Kaniko</li></ul> |
+| local | `/ci/lint.yml` |  |  |
+| template | `Security/SAST.gitlab-ci.yml` |  |  |
 

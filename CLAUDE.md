@@ -40,7 +40,13 @@ annotations still work and override the native fields.
     doc and the body doc (`docLooksLikeBody`), pull `spec.inputs` / `variables` / `include` /
     `stages` nodes, `parseJobs` over the body's top-level keys, scan the raw file for old-style
     `# key --` comments, strict-mode lint (inputs, then variables, then jobs — stops at the
-    first failing category).
+    first failing category). `parseComponentContents` is the in-memory core, shared with
+    `include_resolver.go`.
+  - `include_resolver.go` — `IncludeResolver`: fills `IncludeItem.Summary` (description /
+    variables / jobs, nested includes followed) for the Includes table's Description column.
+    `local:` and the repo's own components (`LocalProjects`/`LocalComponents`) from disk,
+    other `project:`/`component:` via the GitLab repository files API, cached per
+    file. Runs in `main.go` between parse and render, gated on `--include-details`.
   - `comment.go` — the inherited `ParseComment` (`# --` blocks). **Panics on an empty slice**
     (`commentLines[docStartIdx+1:]`), so every caller guards `len(commentLines) > 0`.
 - `pkg/document/` — model + render.

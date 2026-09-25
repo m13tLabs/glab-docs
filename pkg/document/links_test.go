@@ -5,6 +5,7 @@ import (
 
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/yaml.v3"
 
 	"github.com/m13tLabs/glab-docs/pkg/gitlab"
 )
@@ -274,4 +275,37 @@ func TestGetIncludeRows(t *testing.T) {
 		assert.Equal(t, "https://gitlab.example.com/infra/jobs/gitlab-components/helpers/-/blob/v0.6.1/gitlab-ci/include.yml", rows[1].Link)
 		assert.Equal(t, "https://gitlab.example.com/infra/jobs/gitlab-components/glab-docs/-/blob/v0.5.0/templates/update-docs.yml", rows[2].Link)
 	})
+}
+
+func TestIncludeDescription(t *testing.T) {
+	variables := func(src string) *yaml.Node {
+		var doc yaml.Node
+		if err := yaml.Unmarshal([]byte(src), &doc); err != nil {
+			t.Fatal(err)
+		}
+		return doc.Content[0]
+	}
+
+	assert.Equal(t, "", includeDescription(nil))
+	assert.Equal(t,
+		"Shared shell helpers.<br>**Variables:**<ul><li>`CI_DEBUG` = `true` - Enable debug logging</li><li>`LOG_LEVEL` = `info`</li></ul>"+
+			"**Jobs:**<ul><li>`.logging` - Logging helpers</li><li>`.git` - Git helpers</li></ul>",
+		includeDescription(&gitlab.IncludeSummary{
+			Description: "Shared shell helpers.",
+			Files: []gitlab.ComponentDocumentationInfo{
+				{
+					Variables: variables("CI_DEBUG:\n  value: 'true'\n  description: Enable debug logging\n"),
+					Jobs:      []gitlab.Job{{Name: ".logging", Description: "Logging helpers"}},
+				},
+				{
+					// A nested include: its jobs are listed with their descriptions too, and CI_DEBUG /
+					// .logging redefined down the chain are listed once, as first seen.
+					Variables: variables("LOG_LEVEL: info\nCI_DEBUG: 'false'\n"),
+					Jobs:      []gitlab.Job{{Name: ".git", Description: "Git helpers"}, {Name: ".logging", Description: "overridden"}},
+				},
+			},
+		}))
+	assert.Equal(t, "**Jobs:**<ul><li>`lint`</li></ul>", includeDescription(&gitlab.IncludeSummary{
+		Files: []gitlab.ComponentDocumentationInfo{{Jobs: []gitlab.Job{{Name: "lint"}}}},
+	}))
 }

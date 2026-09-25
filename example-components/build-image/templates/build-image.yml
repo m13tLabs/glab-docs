@@ -33,11 +33,18 @@ spec:
       default: latest
       regex: '^[\w][\w.-]{0,127}$'
 ---
-"build-image":
+variables:
+  CI_DEBUG:
+    value: 'true'
+    options: ['true', 'false']
+    description: 'Enable this to enable debug logging in Gitlab'
+
+# -- Build Dockerfile with Kaniko
+'build-image':
   stage: $[[ inputs.stage ]]
   image:
     name: gcr.io/kaniko-project/executor:v1.23.2-debug
-    entrypoint: [""]
+    entrypoint: ['']
   variables:
     # -- Registry the built image is pushed to.
     CI_REGISTRY_IMAGE: $CI_REGISTRY_IMAGE

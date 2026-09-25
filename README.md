@@ -115,6 +115,32 @@ layout is assumed since the alternative `templates/<name>/template.yml` form can
 from the address alone. `remote:`/`template:` includes are listed as-is, since they can't be
 resolved to a project on the same GitLab instance.
 
+The Includes table's **Description** column summarizes what each include brings into the
+pipeline: the included file's own leading `# --` description, its `variables:` (each with its
+value and description) and its jobs (each with its `# --` description; hidden `.templates` included, since helper includes usually export those for `extends:` /
+`!reference`). Nested includes are followed, so a `project:` include of an entry file that only
+`include:`s other files still lists everything those files define. Files are read from:
+
+- `local:` - the checkout (`$CI_PROJECT_DIR`, else the git toplevel, else `--search-root`);
+- `project:` - the GitLab repository files API of `--gitlab-server-url`, at the include's `ref:`
+  (or `HEAD`);
+- `component:` of one of the repository's own components (the address's project matches
+  `$CI_PROJECT_PATH`, the `--component-prefix` project or the git remote, case-insensitively, or
+  is literally `$CI_PROJECT_PATH`) - the discovered `templates/` file in the checkout, whatever
+  the ref;
+- any other `component:` - the same API, trying `templates/<name>.yml` then `templates/<name>/template.yml`
+  at the address's `@<ref>`; a `$CI_SERVER_FQDN` address needs `--gitlab-server-url`, a literal
+  host is fetched from `https://<host>` (anonymously, unless it's the `--gitlab-server-url` host).
+  `~latest`-style refs aren't resolved.
+
+Requests to `--gitlab-server-url` authenticate with `--gitlab-token` / `GLAB_DOCS_GITLAB_TOKEN`
+(`PRIVATE-TOKEN`, needs `read_api`), falling back to `$CI_JOB_TOKEN` (`JOB-TOKEN`). In the
+`update-docs` component, set `GLAB_DOCS_GITLAB_TOKEN` as a masked CI/CD variable rather than an
+input. Anything that can't be resolved just leaves its cell empty (with a warning); pass
+`--include-details=false` to skip resolving entirely, e.g. offline. Note that an include pinned
+to a moving ref (a branch like `main`) makes the generated docs change whenever that branch does,
+which `mode: check` will then report as stale docs.
+
 ### The usage snippet
 
 `--component-prefix <host>/<group>/<project>` produces a real
@@ -239,6 +265,8 @@ Every flag is also settable via a `GLAB_DOCS_`-prefixed env var (dashes → unde
 | `-t, --template-files` | `README.md.gotmpl` | extra templates |
 | `--component-prefix` | _(empty)_ | include-snippet address prefix |
 | `--gitlab-server-url` | _(empty)_ | resolves a literal `$CI_SERVER_FQDN` in documented `component:` includes and links them to their source project |
+| `--include-details` | `true` | fill the Includes table's Description column (variables / jobs each include adds) |
+| `--gitlab-token` | _(empty)_ | token for fetching `project:`/`component:` includes; falls back to `$CI_JOB_TOKEN` |
 | `-s, --sort-values-order` | `alphanum` | `alphanum` or `file` |
 | `-i, --ignore-file` | `.glabdocsignore` | ignore file name |
 | `-d, --dry-run` | `false` | print instead of write |

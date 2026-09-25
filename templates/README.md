@@ -1,4 +1,4 @@
-# glab-docs
+# update-docs
 
 Generates or checks GitLab CI component/pipeline documentation with glab-docs.
 
@@ -6,11 +6,13 @@ Generates or checks GitLab CI component/pipeline documentation with glab-docs.
 
 ```yaml
 include:
-  - component: $CI_SERVER_FQDN/<path-to-project>/glab-docs@<version>
+  - component: gitlab.com/m13tlabs/glab-docs/update-docs@<version>
     inputs:
       allow-failure: false
-      component-prefix: $CI_SERVER_FQDN/$CI_PROJECT_PATH
+      before-script: ["set -eu\nif [ \"$[[ inputs.mode ]]\" = \"check\" ]; then\n  apk add --no-cache git\nfi\n"]
+      component-prefix: ""
       extra-args: ""
+      gitlab-server-url: $CI_SERVER_URL
       image: m13t/glab-docs
       job-name: glab-docs
       mode: check
@@ -20,7 +22,7 @@ include:
       stage: test
       strict: false
       template-files: README.md.gotmpl
-      version: 0.2.1
+      version: 0.6.0
 ```
 
 ## Inputs
@@ -28,8 +30,10 @@ include:
 | Input | Type | Default | Options | Description |
 |-------|------|---------|---------|-------------|
 | allow-failure | boolean | `false` |  | Mark the job as allowed to fail. |
-| component-prefix | string | `$CI_SERVER_FQDN/$CI_PROJECT_PATH` |  | Address prefix for the generated include snippet (`--component-prefix`). |
+| before-script | array | `["set -eu\nif [ \"$[[ inputs.mode ]]\" = \"check\" ]; then\n  apk add --no-cache git\nfi\n"]` |  | Run before steps, default to install git |
+| component-prefix | string | _none_ |  | Address prefix override for the generated include snippet (`--component-prefix`). Empty resolves the project path automatically (from `$CI_PROJECT_PATH`) behind a literal `$CI_SERVER_FQDN` placeholder. |
 | extra-args | string | _none_ |  | Extra raw arguments appended to the glab-docs command. |
+| gitlab-server-url | string | `$CI_SERVER_URL` |  | GitLab server base URL used to resolve `$CI_SERVER_FQDN` in documented `component:` includes and link them to their source project (`--gitlab-server-url`). |
 | image | string | `m13t/glab-docs` |  | glab-docs container image, without the tag. |
 | job-name | string | `glab-docs` |  | Name of the generated job. |
 | mode | string | `check` | `check`, `generate` | `check` fails the job when the committed docs are stale; `generate` just writes them. |
@@ -39,7 +43,7 @@ include:
 | stage | string | `test` |  | Pipeline stage the generated job runs in. |
 | strict | boolean | `false` |  | Fail on undocumented inputs / variables (adds `--documentation-strict-mode`). |
 | template-files | string | `README.md.gotmpl` |  | Template file name passed to `--template-files`. |
-| version | string | `0.2.1` |  | glab-docs container image tag. |
+| version | string | `0.6.0` |  | glab-docs container image tag. |
 
 ## Jobs
 

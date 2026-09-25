@@ -172,9 +172,9 @@ func getIncludesTemplate() string {
 	b.WriteString(`{{ define "pipeline.includesHeader" }}{{ repeat (add1 .HeadingLevel | int) "#" }} Includes{{ end }}`)
 
 	b.WriteString(`{{ define "pipeline.includesTable" }}`)
-	b.WriteString("| Type | Location | Ref |\n|------|----------|-----|")
+	b.WriteString("| Type | Location | Ref | Description |\n|------|----------|-----|-------------|")
 	b.WriteString("  {{- range .IncludeItems }}")
-	b.WriteString("\n| {{ .Kind }} | {{ if .Link }}[`{{ .Location }}`]({{ .Link }}){{ else }}`{{ .Location }}`{{ end }} | {{ if .Ref }}`{{ .Ref }}`{{ end }} |")
+	b.WriteString("\n| {{ .Kind }} | {{ if .Link }}[`{{ .Location }}`]({{ .Link }}){{ else }}`{{ .Location }}`{{ end }} | {{ if .Ref }}`{{ .Ref }}`{{ end }} | {{ .Description }} |")
 	b.WriteString("  {{- end }}")
 	b.WriteString("{{ end }}")
 

@@ -72,6 +72,9 @@ type includeRow struct {
 	Location string
 	Ref      string
 	Link     string
+	// Description summarizes what the include adds (its own description, variables and jobs),
+	// already Markdown-formatted for a table cell; empty when it couldn't be resolved.
+	Description string
 }
 
 // jobRow is one row of the pipeline's Jobs table.
@@ -204,13 +207,79 @@ func getIncludeRows(relFile string, items []gitlab.IncludeItem, links map[string
 			location, link = resolveProjectLocation(item, serverURL)
 		}
 		rows = append(rows, includeRow{
-			Kind:     item.Kind,
-			Location: location,
-			Ref:      item.Ref,
-			Link:     link,
+			Kind:        item.Kind,
+			Location:    location,
+			Ref:         item.Ref,
+			Link:        link,
+			Description: includeDescription(item.Summary),
 		})
 	}
 	return rows
+}
+
+// includeDescription renders an include's summary for its Description cell - the included file's
+// own description, then a bullet list of the variables it (transitively) adds, with their default
+// and description, and one of its jobs with their `# --` description - both gathered across the
+// included file and everything it includes. Names defined by several of the included files are
+// listed once, as first defined. The lists are inline HTML, since Markdown list syntax doesn't
+// work inside a table cell; Markdown within the list items (code spans) still renders.
+func includeDescription(summary *gitlab.IncludeSummary) string {
+	if summary == nil {
+		return ""
+	}
+
+	seenVariables := map[string]bool{}
+	seenJobs := map[string]bool{}
+	variableItems := make([]string, 0)
+	jobItems := make([]string, 0)
+	for _, file := range summary.Files {
+		variableRows, err := getVariableRows(file.Variables, file.VariableDescriptions)
+		if err != nil {
+			log.Warnf("Skipping variables of included %s: %s", file.SourceFile, err)
+		}
+		for _, v := range variableRows {
+			if seenVariables[v.Name] {
+				continue
+			}
+			seenVariables[v.Name] = true
+			item := "`" + v.Name + "`"
+			if v.Default != "" {
+				item += " = " + v.Default
+			}
+			if v.Description != "" {
+				item += " - " + v.Description
+			}
+			variableItems = append(variableItems, item)
+		}
+
+		for _, j := range file.Jobs {
+			if seenJobs[j.Name] {
+				continue
+			}
+			seenJobs[j.Name] = true
+			item := "`" + j.Name + "`"
+			if j.Description != "" {
+				item += " - " + j.Description
+			}
+			jobItems = append(jobItems, item)
+		}
+	}
+
+	var b strings.Builder
+	b.WriteString(summary.Description)
+	for _, list := range []struct {
+		title string
+		items []string
+	}{{"Variables", variableItems}, {"Jobs", jobItems}} {
+		if len(list.items) == 0 {
+			continue
+		}
+		if b.Len() > 0 && !strings.HasSuffix(b.String(), "</ul>") {
+			b.WriteString("<br>") // a </ul> already ends its line
+		}
+		b.WriteString("**" + list.title + ":**<ul><li>" + strings.Join(list.items, "</li><li>") + "</li></ul>")
+	}
+	return b.String()
 }
 
 func getJobRows(jobs []gitlab.Job) []jobRow {
