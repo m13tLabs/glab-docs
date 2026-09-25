@@ -44,7 +44,9 @@ annotations still work and override the native fields.
     `include_resolver.go`.
   - `include_resolver.go` — `IncludeResolver`: fills `IncludeItem.Summary` (description /
     variables / jobs, nested includes followed) for the Includes table's Description column.
-    `local:` and the repo's own components (`LocalProjects`/`LocalComponents`) from disk,
+    `local:` and the repo's own components (`LocalProjects`/`LocalComponents`) from disk, the
+    repo's own `project:` includes from the working tree (ref in `CurrentRefs`) or
+    `git show <ref>:<file>` (`util.GitShow`), API as fallback,
     other `project:`/`component:` via the GitLab repository files API, cached per
     file. Runs in `main.go` between parse and render, gated on `--include-details`.
   - `comment.go` — the inherited `ParseComment` (`# --` blocks). **Panics on an empty slice**

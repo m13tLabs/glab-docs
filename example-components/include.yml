@@ -1,0 +1,23 @@
+variables:
+  CI_DEBUG2:
+    value: 'true'
+    options: ['true', 'false']
+    description: 'Enable this to enable debug logging in Gitlab'
+
+# -- Build Dockerfile with Kaniko
+.kaniko_build:
+  stage: $[[ inputs.stage ]]
+  image:
+    name: gcr.io/kaniko-project/executor:v1.23.2-debug
+    entrypoint: ['']
+  variables:
+    # -- Registry the built image is pushed to.
+    CI_REGISTRY_IMAGE: $CI_REGISTRY_IMAGE
+    # -- Kaniko cache repository.
+    KANIKO_CACHE_REPO: $CI_REGISTRY_IMAGE/cache
+  script:
+    - /kaniko/executor
+      --context "$[[ inputs.context ]]"
+      --dockerfile "$[[ inputs.dockerfile ]]"
+      --destination "$[[ inputs.destination ]]"
+      --verbosity "$[[ inputs.log_level ]]"

@@ -3,6 +3,9 @@ include:
   - component: $CI_SERVER_FQDN/m13tlabs/glab-docs/build-image@main
     inputs:
       destination: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
+  - project: 'm13tLabs/glab-docs'
+    ref: 'develop'
+    file: example-components/include.yml
   - local: /ci/lint.yml
   - template: Security/SAST.gitlab-ci.yml
 

@@ -7,11 +7,14 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
+
+	"github.com/m13tLabs/glab-docs/pkg/util"
 )
 
 // IncludeSummary is what an included file (plus everything it transitively includes) adds to the
@@ -31,8 +34,9 @@ type IncludeSummary struct {
 const maxIncludeDepth = 10
 
 // includeSource identifies one concrete file an include resolves to. BaseURL is empty for a file
-// read from the local checkout, in which case Project and Ref are empty too and File is relative
-// to IncludeResolver.LocalRoot (or absolute, for one of LocalComponents).
+// of the documented repository itself, in which case Project is empty too and File is relative to
+// IncludeResolver.LocalRoot (or absolute, for one of LocalComponents). Such a file is read from
+// the working tree when Ref is empty, otherwise from local git at Ref.
 type includeSource struct {
 	BaseURL string
 	Project string
@@ -41,6 +45,9 @@ type includeSource struct {
 }
 
 func (s includeSource) key() string {
+	if s.BaseURL == "" && s.Ref != "" {
+		return "git:" + s.Ref + ":" + s.File
+	}
 	if s.BaseURL == "" {
 		return "local:" + s.File
 	}
@@ -75,7 +82,11 @@ type IncludeResolver struct {
 	LocalProjects []string
 	// LocalComponents maps a discovered component's name to its file on disk.
 	LocalComponents map[string]string
-	Client          *http.Client
+	// CurrentRefs are the names of the checked-out revision (HEAD, its branch, its SHA, ...). A
+	// `project:` include of the documented repository at one of them is read from the working
+	// tree - uncommitted edits included - rather than from git.
+	CurrentRefs []string
+	Client      *http.Client
 
 	mu    sync.Mutex
 	cache map[string]fetchResult
@@ -167,19 +178,29 @@ func (r *IncludeResolver) sourcesFor(item IncludeItem, parent includeSource) []i
 		return []includeSource{{BaseURL: parent.BaseURL, Project: parent.Project, Ref: parent.Ref, File: file}}
 
 	case "project":
-		if r.ServerURL == "" || item.Location == "" || item.File == "" || strings.Contains(item.Location+item.File+item.Ref, "$") {
+		project, file := strings.Trim(item.Location, "/"), strings.TrimPrefix(item.File, "/")
+		if project == "" || file == "" {
 			return nil
 		}
 		ref := item.Ref
 		if ref == "" {
-			ref = "HEAD"
+			ref = "HEAD" // GitLab uses the project's default branch; HEAD is the API's name for it
 		}
-		return []includeSource{{
-			BaseURL: r.ServerURL,
-			Project: strings.Trim(item.Location, "/"),
-			Ref:     ref,
-			File:    strings.TrimPrefix(item.File, "/"),
-		}}
+
+		sources := make([]includeSource, 0, 2)
+		// The documented repository itself: read it from local git at the include's ref, falling
+		// back to the API below when git doesn't have that ref (e.g. a shallow CI clone).
+		if r.isOwnProject(project) && !strings.Contains(file+item.Ref, "$") {
+			if item.Ref == "" || slices.Contains(r.CurrentRefs, item.Ref) {
+				sources = append(sources, includeSource{File: file})
+			} else {
+				sources = append(sources, includeSource{Ref: item.Ref, File: file})
+			}
+		}
+		if r.ServerURL != "" && !strings.Contains(project+file+item.Ref, "$") {
+			sources = append(sources, includeSource{BaseURL: r.ServerURL, Project: project, Ref: ref, File: file})
+		}
+		return sources
 
 	case "component":
 		return r.componentSources(item)
@@ -253,12 +274,17 @@ func (r *IncludeResolver) localComponentSource(item IncludeItem) (includeSource,
 	if !ok {
 		return includeSource{}, false
 	}
+	return includeSource{File: file}, r.isOwnProject(project)
+}
+
+// isOwnProject reports whether a project path in an include refers to the documented repository.
+func (r *IncludeResolver) isOwnProject(project string) bool {
 	for _, local := range r.LocalProjects {
 		if local != "" && (project == "$CI_PROJECT_PATH" || strings.EqualFold(project, local)) {
-			return includeSource{File: file}, true
+			return true
 		}
 	}
-	return includeSource{}, false
+	return false
 }
 
 func (r *IncludeResolver) parse(src includeSource) (ComponentDocumentationInfo, error) {
@@ -286,7 +312,9 @@ func (r *IncludeResolver) fetch(src includeSource) ([]byte, error) {
 
 	var contents []byte
 	var err error
-	if src.BaseURL == "" {
+	if src.BaseURL == "" && src.Ref != "" {
+		contents, err = r.gitShow(src.Ref, src.File)
+	} else if src.BaseURL == "" {
 		path := src.File
 		if !filepath.IsAbs(path) {
 			path = filepath.Join(r.LocalRoot, filepath.FromSlash(path))
@@ -300,6 +328,20 @@ func (r *IncludeResolver) fetch(src includeSource) ([]byte, error) {
 	r.cache[key] = fetchResult{contents: contents, err: err}
 	r.mu.Unlock()
 	return contents, err
+}
+
+// gitShow reads file at ref from the local repository, trying ref as given and then as a branch
+// of the "origin" remote (CI clones and fresh checkouts often lack a local branch of that name).
+func (r *IncludeResolver) gitShow(ref, file string) ([]byte, error) {
+	var lastErr error
+	for _, rev := range []string{ref, "origin/" + ref} {
+		contents, err := util.GitShow(r.LocalRoot, rev, file)
+		if err == nil {
+			return contents, nil
+		}
+		lastErr = err
+	}
+	return nil, lastErr
 }
 
 func (r *IncludeResolver) fetchRemote(src includeSource) ([]byte, error) {

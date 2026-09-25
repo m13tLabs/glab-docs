@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -170,4 +171,69 @@ func TestSummarizeOwnComponentFromCheckout(t *testing.T) {
 	}
 
 	assert.Nil(t, resolver.Summarize(IncludeItem{Kind: "component", Location: "$CI_SERVER_FQDN/other/project/build-image", Ref: "~latest"}), "other project")
+}
+
+func TestSummarizeOwnProjectIncludeRespectsGitRef(t *testing.T) {
+	root := t.TempDir()
+	git := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", append([]string{"-C", root, "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false"}, args...)...)
+		out, err := cmd.CombinedOutput()
+		require.NoError(t, err, string(out))
+	}
+	write := func(file, contents string) {
+		t.Helper()
+		require.NoError(t, os.MkdirAll(filepath.Dir(filepath.Join(root, file)), 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(root, file), []byte(contents), 0o644))
+	}
+
+	// develop: include.yml pulls in a nested local file.
+	git("init", "-q", "-b", "develop")
+	write("ci/include.yml", "include:\n  - local: ci/nested.yml\nvariables:\n  ON_DEVELOP: 'true'\n")
+	write("ci/nested.yml", "# -- Nested on develop.\n.nested_develop:\n  script: [echo]\n")
+	git("add", ".")
+	git("commit", "-q", "-m", "develop")
+
+	// feature (checked out): both files changed, include.yml only in the working tree.
+	git("checkout", "-q", "-b", "feature")
+	write("ci/nested.yml", ".nested_feature:\n  script: [echo]\n")
+	git("commit", "-q", "-am", "feature")
+	write("ci/include.yml", "include:\n  - local: ci/nested.yml\nvariables:\n  UNCOMMITTED: 'true'\n")
+
+	resolver := NewIncludeResolver("", "", "", root)
+	resolver.LocalProjects = []string{"m13tLabs/glab-docs"}
+	resolver.CurrentRefs = []string{"HEAD", "feature"}
+	include := func(ref string) IncludeItem {
+		return IncludeItem{Kind: "project", Location: "m13tlabs/glab-docs", File: "/ci/include.yml", Ref: ref}
+	}
+
+	t.Run("other ref is read from git, nested includes at the same ref", func(t *testing.T) {
+		summary := resolver.Summarize(include("develop"))
+		require.NotNil(t, summary)
+		assert.Equal(t, []string{"ON_DEVELOP"}, variableNames(summary))
+		assert.Equal(t, []string{".nested_develop"}, jobNames(summary))
+		assert.Equal(t, "Nested on develop.", summary.Files[1].Jobs[0].Description)
+	})
+
+	t.Run("checked-out ref is read from the working tree", func(t *testing.T) {
+		summary := resolver.Summarize(include("feature"))
+		require.NotNil(t, summary)
+		assert.Equal(t, []string{"UNCOMMITTED"}, variableNames(summary))
+		assert.Equal(t, []string{".nested_feature"}, jobNames(summary))
+	})
+
+	t.Run("unknown ref without a server URL can't be resolved", func(t *testing.T) {
+		assert.Nil(t, resolver.Summarize(include("no-such-branch")))
+	})
+
+	t.Run("unknown ref falls back to the API", func(t *testing.T) {
+		var token string
+		server := fakeGitLab(t, map[string]string{"ci/include.yml": "variables:\n  FROM_API: 'true'\n"}, &token)
+		defer server.Close()
+		apiResolver := NewIncludeResolver(server.URL, "", "", root)
+		apiResolver.LocalProjects = []string{"infra/jobs/helpers"}
+		summary := apiResolver.Summarize(IncludeItem{Kind: "project", Location: "infra/jobs/helpers", File: "ci/include.yml", Ref: "main"})
+		require.NotNil(t, summary)
+		assert.Equal(t, []string{"FROM_API"}, variableNames(summary))
+	})
 }

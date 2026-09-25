@@ -280,6 +280,7 @@ func glabDocs(_ *cobra.Command, _ []string) {
 		)
 		resolver.LocalProjects = resolveLocalProjectPaths()
 		resolver.LocalComponents = localComponentFiles(componentSearchRoot, infoByFile)
+		resolver.CurrentRefs = resolveCurrentRefs(resolver.LocalRoot)
 		resolver.ResolveAll(infoByFile)
 	}
 
@@ -301,6 +302,18 @@ func resolveLocalProjectPaths() []string {
 		paths = append(paths, projectPath)
 	}
 	return paths
+}
+
+// resolveCurrentRefs lists the names of the checked-out revision - from git, plus GitLab CI's own
+// view of it, which also covers CI's detached-HEAD checkouts and images without git.
+func resolveCurrentRefs(localRoot string) []string {
+	refs := util.GitCurrentRefs(localRoot)
+	for _, env := range []string{"CI_COMMIT_REF_NAME", "CI_COMMIT_SHA"} {
+		if v := os.Getenv(env); v != "" {
+			refs = append(refs, v)
+		}
+	}
+	return refs
 }
 
 // localComponentFiles maps the name of every discovered file that lives under a `templates/`
