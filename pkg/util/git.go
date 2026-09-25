@@ -1,6 +1,8 @@
 package util
 
 import (
+	"bytes"
+	"fmt"
 	"net/url"
 	"os/exec"
 	"strings"
@@ -14,6 +16,32 @@ func FindGitRepositoryRoot() (string, error) {
 	}
 
 	return strings.TrimSpace(string(path)), nil
+}
+
+// GitShow returns file's contents at rev in the git repository at dir - `git show <rev>:<file>`,
+// with file relative to the repository root.
+func GitShow(dir, rev, file string) ([]byte, error) {
+	cmd := exec.Command("git", "-C", dir, "show", rev+":"+file)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("git show %s:%s: %w: %s", rev, file, err, strings.TrimSpace(stderr.String()))
+	}
+	return out, nil
+}
+
+// GitCurrentRefs returns the names the checked-out revision of the git repository at dir goes by:
+// "HEAD", its full SHA and, unless detached, its branch name.
+func GitCurrentRefs(dir string) []string {
+	refs := []string{"HEAD"}
+	for _, args := range [][]string{{"rev-parse", "HEAD"}, {"rev-parse", "--abbrev-ref", "HEAD"}} {
+		out, err := exec.Command("git", append([]string{"-C", dir}, args...)...).Output()
+		if name := strings.TrimSpace(string(out)); err == nil && name != "" && name != "HEAD" {
+			refs = append(refs, name)
+		}
+	}
+	return refs
 }
 
 // FindGitProjectPath returns the "group/subgroup/project" path (no host, no scheme, no `.git`

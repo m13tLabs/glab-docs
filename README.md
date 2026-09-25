@@ -122,8 +122,14 @@ value and description) and its jobs (each with its `# --` description; hidden `.
 `include:`s other files still lists everything those files define. Files are read from:
 
 - `local:` - the checkout (`$CI_PROJECT_DIR`, else the git toplevel, else `--search-root`);
-- `project:` - the GitLab repository files API of `--gitlab-server-url`, at the include's `ref:`
-  (or `HEAD`);
+- `project:` of the documented repository itself (same project matching as for components
+  below) - local git at the include's `ref:`: the working tree (uncommitted edits included) when
+  the ref is the checked-out one (`HEAD`, its branch or SHA, `$CI_COMMIT_REF_NAME`,
+  `$CI_COMMIT_SHA`) or no `ref:` is given, otherwise `git show <ref>:<file>` (then
+  `origin/<ref>`). Nested `local:` includes are read at the same ref. If git doesn't have the
+  ref (a shallow CI clone, no git in the image), the API below is tried instead;
+- any other `project:` - the GitLab repository files API of `--gitlab-server-url`, at the
+  include's `ref:` (or `HEAD`);
 - `component:` of one of the repository's own components (the address's project matches
   `$CI_PROJECT_PATH`, the `--component-prefix` project or the git remote, case-insensitively, or
   is literally `$CI_PROJECT_PATH`) - the discovered `templates/` file in the checkout, whatever
