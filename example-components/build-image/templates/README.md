@@ -6,7 +6,7 @@ Builds a container image with Kaniko and pushes it to the project registry.
 
 ```yaml
 include:
-  - component: $CI_SERVER_FQDN/<path-to-project>/build-image@<version>
+  - component: gitlab.com/m13tlabs/glab-docs/build-image@<version>
     inputs:
       build_args: []
       context: .
@@ -31,9 +31,15 @@ include:
 | stage | string | `build` |  | Pipeline stage the job runs in. |
 | tag | string | `latest` |  | Tag applied to the built image. Must be a valid Docker tag.<br>Pattern: `^[\w][\w.-]{0,127}$` |
 
+## Variables
+
+| Variable | Default | Options | Description |
+|----------|---------|---------|-------------|
+| CI_DEBUG | `true` | `true`, `false` | Enable this to enable debug logging in Gitlab |
+
 ## Jobs
 
 | Job | Stage | When | Needs | Description |
 |-----|-------|------|-------|-------------|
-| `build-image` | `$[[ inputs.stage ]]` |  |  |  |
+| `build-image` | `$[[ inputs.stage ]]` |  |  | Build Dockerfile with Kaniko |
 

@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"regexp"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 
@@ -270,7 +271,67 @@ func glabDocs(_ *cobra.Command, _ []string) {
 		log.Fatal(err)
 	}
 
+	if viper.GetBool("include-details") {
+		resolver := gitlab.NewIncludeResolver(
+			viper.GetString("gitlab-server-url"),
+			viper.GetString("gitlab-token"),
+			os.Getenv("CI_JOB_TOKEN"),
+			resolveLocalIncludeRoot(componentSearchRoot),
+		)
+		resolver.LocalProjects = resolveLocalProjectPaths()
+		resolver.LocalComponents = localComponentFiles(componentSearchRoot, infoByFile)
+		resolver.ResolveAll(infoByFile)
+	}
+
 	writeDocumentation(componentSearchRoot, infoByFile, dryRun, parallelism)
+}
+
+// resolveLocalProjectPaths lists every path the documented repository may be addressed by in a
+// `component:` include of one of its own components: $CI_PROJECT_PATH, the project path of
+// --component-prefix (host stripped) and the local git remote's.
+func resolveLocalProjectPaths() []string {
+	paths := make([]string, 0, 3)
+	if projectPath := os.Getenv("CI_PROJECT_PATH"); projectPath != "" {
+		paths = append(paths, projectPath)
+	}
+	if _, projectPath, found := strings.Cut(strings.Trim(viper.GetString("component-prefix"), "/"), "/"); found {
+		paths = append(paths, projectPath)
+	}
+	if projectPath, err := util.FindGitProjectPath(); err == nil && projectPath != "" {
+		paths = append(paths, projectPath)
+	}
+	return paths
+}
+
+// localComponentFiles maps the name of every discovered file that lives under a `templates/`
+// directory - i.e. is a CI/CD component, not a plain pipeline - to its absolute path, for
+// `component:` includes of the repository's own components to resolve against.
+func localComponentFiles(componentSearchRoot string, infoByFile map[string]gitlab.ComponentDocumentationInfo) map[string]string {
+	absRoot, err := filepath.Abs(componentSearchRoot)
+	if err != nil {
+		absRoot = componentSearchRoot
+	}
+	components := make(map[string]string)
+	for relFile, info := range infoByFile {
+		if !slices.Contains(strings.Split(filepath.ToSlash(filepath.Join(filepath.Base(absRoot), relFile)), "/"), "templates") {
+			continue
+		}
+		components[info.Name] = filepath.Join(absRoot, relFile)
+	}
+	return components
+}
+
+// resolveLocalIncludeRoot finds the directory the documented repository's `local:` includes are
+// relative to - its root: $CI_PROJECT_DIR in a GitLab CI job, otherwise the git toplevel, falling
+// back to the search root when neither is available (the runtime image ships without git).
+func resolveLocalIncludeRoot(componentSearchRoot string) string {
+	if projectDir := os.Getenv("CI_PROJECT_DIR"); projectDir != "" {
+		return projectDir
+	}
+	if root, err := util.FindGitRepositoryRoot(); err == nil && root != "" {
+		return root
+	}
+	return componentSearchRoot
 }
 
 func main() {
