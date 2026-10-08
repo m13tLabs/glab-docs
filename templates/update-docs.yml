@@ -23,13 +23,14 @@ spec:
       default: $CI_SERVER_URL
       description: GitLab server base URL used to resolve `$CI_SERVER_FQDN` in documented `component:` includes and link them to their source project (`--gitlab-server-url`).
     before-script:
-      default: 
+      type: array
+      default:
         - |
           set -eu
-          if [ "$[[ inputs.mode ]]" = "check" ]; then
+          if [ "$GLAB_DOCS_MODE" = "check" ]; then
             apk add --no-cache git
           fi
-      description: Run before steps, default to install git
+      description: Steps run before the main script (`before_script`). The default installs git when `mode` is `check`; the mode is available as `$GLAB_DOCS_MODE`.
     template-files:
       default: README.md.gotmpl
       description: Template file name passed to `--template-files`.
@@ -65,6 +66,8 @@ spec:
     name: "$[[ inputs.image ]]:$[[ inputs.version ]]"
     entrypoint: [""]
   allow_failure: $[[ inputs.allow-failure ]]
+  variables:
+    GLAB_DOCS_MODE: $[[ inputs.mode ]]
   before_script: $[[ inputs.before-script ]]
   script:
     - |
