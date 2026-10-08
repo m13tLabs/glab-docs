@@ -1,4 +1,19 @@
 
+## [1.1.0](https://github.com/m13tLabs/renovate-config/compare/v1.0.0...v1.1.0) (2026-10-08)
+
+### Bug Fixes
+
+* **Gitlab:** Correcting setup for before script ([be28d22](https://github.com/m13tLabs/renovate-config/commit/be28d222df76cd01ec4b6240f13432b873b96c8e))
+
+
+
+### Features
+
+* **Gitlab:** Allow to configure git directly ([967d262](https://github.com/m13tLabs/renovate-config/commit/967d26293575c90ee0c27391240ee2f3c566f7a9))
+
+
+
+
 ## [1.0.0](https://github.com/m13tLabs/renovate-config/compare/v0.6.0...v1.0.0) (2026-09-25)
 
 ### Bug Fixes
