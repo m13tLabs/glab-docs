@@ -27,10 +27,10 @@ spec:
       default:
         - |
           set -eu
-          if [ "$GLAB_DOCS_MODE" = "check" ]; then
+          if [ "$GLAB_DOCS_MODE" = "check" ] || [ "$GLAB_DOCS_COMMIT" = "true" ]; then
             apk add --no-cache git
           fi
-      description: Steps run before the main script (`before_script`). The default installs git when `mode` is `check`; the mode is available as `$GLAB_DOCS_MODE`.
+      description: Steps run before the main script (`before_script`). The default installs git when `mode` is `check` or `commit` is enabled; these are available as `$GLAB_DOCS_MODE` and `$GLAB_DOCS_COMMIT`.
     template-files:
       default: README.md.gotmpl
       description: Template file name passed to `--template-files`.
@@ -43,10 +43,26 @@ spec:
       description: Fail on undocumented inputs / variables (adds `--documentation-strict-mode`).
     mode:
       default: check
-      description: "`check` fails the job when the committed docs are stale; `generate` just writes them."
+      description: "`check` fails the job when the committed docs are stale; `generate` writes them (and commits them when `commit` is enabled)."
       options:
         - check
         - generate
+    commit:
+      type: boolean
+      default: true
+      description: In `generate` mode, commit changed docs and push them to the pipeline's branch. Skipped in tag and merge request pipelines. Needs `commit-push-token`.
+    commit-message:
+      default: "docs: regenerate glab-docs output"
+      description: Message of the commit created when `commit` is enabled. The push uses `-o ci.skip`, so it doesn't start a new pipeline.
+    commit-author-name:
+      default: glab-docs
+      description: Author and committer name of the docs commit.
+    commit-author-email:
+      default: glab-docs@noreply.$CI_SERVER_HOST
+      description: Author and committer email of the docs commit.
+    commit-push-token:
+      default: $CI_JOB_TOKEN
+      description: Token used to push the docs commit, as a CI/CD variable reference. The default job token needs "Allow Git push requests to the repository" enabled under Settings > CI/CD > Job token permissions. Otherwise pass a masked variable holding a project access token with `write_repository`; don't pass the token itself.
     extra-args:
       default: ""
       description: Extra raw arguments appended to the glab-docs command.
@@ -68,6 +84,14 @@ spec:
   allow_failure: $[[ inputs.allow-failure ]]
   variables:
     GLAB_DOCS_MODE: $[[ inputs.mode ]]
+    GLAB_DOCS_COMMIT: "$[[ inputs.commit ]]"
+    GLAB_DOCS_COMMIT_MESSAGE: "$[[ inputs.commit-message ]]"
+    GLAB_DOCS_OUTPUT_FILE: "$[[ inputs.output-file ]]"
+    GLAB_DOCS_TOKEN: "$[[ inputs.commit-push-token ]]"
+    GIT_AUTHOR_NAME: "$[[ inputs.commit-author-name ]]"
+    GIT_AUTHOR_EMAIL: "$[[ inputs.commit-author-email ]]"
+    GIT_COMMITTER_NAME: "$[[ inputs.commit-author-name ]]"
+    GIT_COMMITTER_EMAIL: "$[[ inputs.commit-author-email ]]"
   before_script: $[[ inputs.before-script ]]
   script:
     - |
@@ -100,4 +124,25 @@ spec:
           exit 1
         fi
         echo "Documentation is up to date."
+      fi
+    - |
+      set -eu
+      if [ "$GLAB_DOCS_MODE" = "generate" ] && [ "$GLAB_DOCS_COMMIT" = "true" ]; then
+        if [ -z "${CI_COMMIT_BRANCH:-}" ]; then
+          echo "Not a branch pipeline (tag or merge request) - skipping the docs commit."
+          exit 0
+        fi
+        git add -A -- ":(glob)**/$GLAB_DOCS_OUTPUT_FILE"
+        if git diff --cached --quiet; then
+          echo "Documentation is up to date - nothing to commit."
+          exit 0
+        fi
+        if [ -z "$GLAB_DOCS_TOKEN" ]; then
+          echo "commit is enabled but commit-push-token is empty."
+          exit 1
+        fi
+        git commit -m "$GLAB_DOCS_COMMIT_MESSAGE"
+        git push -o ci.skip \
+          "${CI_SERVER_PROTOCOL}://gitlab-ci-token:${GLAB_DOCS_TOKEN}@${CI_SERVER_HOST}:${CI_SERVER_PORT}/${CI_PROJECT_PATH}.git" \
+          "HEAD:refs/heads/${CI_COMMIT_BRANCH}"
       fi
