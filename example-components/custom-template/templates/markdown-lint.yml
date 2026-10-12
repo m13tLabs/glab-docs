@@ -1,0 +1,17 @@
+# -- Lints the repository's Markdown files with markdownlint-cli2.
+spec:
+  inputs:
+    stage:
+      default: lint
+      description: Pipeline stage the job runs in.
+    globs:
+      type: array
+      default: ["**/*.md"]
+      description: Globs of the files to lint.
+---
+# -- Runs markdownlint-cli2 over the configured globs.
+markdown-lint:
+  image: davidanson/markdownlint-cli2:latest
+  stage: $[[ inputs.stage ]]
+  script:
+    - markdownlint-cli2 $[[ inputs.globs ]]

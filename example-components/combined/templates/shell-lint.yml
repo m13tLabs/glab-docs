@@ -1,0 +1,17 @@
+# -- Lints shell scripts with ShellCheck.
+spec:
+  inputs:
+    stage:
+      default: lint
+      description: Pipeline stage the job runs in.
+    severity:
+      default: warning
+      description: Minimum severity that fails the job.
+      options: [error, warning, info, style]
+---
+# -- Runs ShellCheck over every `*.sh` file.
+shell-lint:
+  image: koalaman/shellcheck-alpine:stable
+  stage: $[[ inputs.stage ]]
+  script:
+    - find . -name '*.sh' -exec shellcheck --severity "$[[ inputs.severity ]]" {} +

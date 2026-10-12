@@ -1,0 +1,60 @@
+# -- Lints the repository's YAML files with yamllint.
+# @raw
+#
+# ### Prerequisites
+#
+# - a `.yamllint` config at the repository root (optional, the yamllint defaults apply otherwise)
+# - a `lint` stage in the calling pipeline
+#
+# ### Example
+#
+# ```yaml
+# include:
+#   - component: $CI_SERVER_FQDN/my-group/ci-components/yaml-lint@1.0.0
+#     inputs:
+#       paths: [ci/, templates/]
+#       strict: true
+# ```
+#
+# > [!NOTE]
+# > Findings are published as a Code Quality report, so they show up in the merge request widget.
+spec:
+  inputs:
+    # -- Pipeline stage the job runs in.
+    # @section -- General
+    stage:
+      default: lint
+    # -- Directories or files to lint.<br>Relative to the repository root.
+    # @section -- General
+    paths:
+      type: array
+      default: ["."]
+    # -- Fail on warnings, not only on errors.
+    # @section -- Behaviour
+    strict:
+      type: boolean
+      default: false
+    # -- Output format of the job log.
+    # @section -- Behaviour
+    format:
+      default: colored
+      options: [colored, parsable, standard]
+    # @ignore
+    debug:
+      default: false
+---
+variables:
+  # -- yamllint config file passed via `--config-file`.
+  # @default -- `.yamllint` in the repository root, if present
+  YAMLLINT_CONFIG: ""
+
+# -- Shared yamllint setup, reusable via `extends:`.
+.yamllint:
+  image: registry.gitlab.com/pipeline-components/yamllint:latest
+
+# -- Runs yamllint and publishes a Code Quality report.
+yaml-lint:
+  extends: .yamllint
+  stage: $[[ inputs.stage ]]
+  script:
+    - yamllint --format "$[[ inputs.format ]]" $[[ inputs.strict ]] $[[ inputs.paths ]]

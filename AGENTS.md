@@ -65,7 +65,9 @@ annotations still work and override the native fields.
   whole helm dependency tree is gone; `filepath.Match` semantics, `**` rejected).
 - `example-components/` — fixtures with committed generated `README.md`s. `plain-pipeline/`
   exercises `variables:` + `include:` + a couple of simple jobs; `build-image/templates/`
-  exercises `spec:inputs`. Richer job cases (`needs` as maps, `extends`, `when: manual`, hidden
+  exercises `spec:inputs`; `raw-description/` the `@raw` file description and the other comment
+  annotations; `custom-template/` a `README.md.gotmpl`; `combined/` several flat templates
+  merged into one README. All are listed in the README's "Examples" section. Richer job cases (`needs` as maps, `extends`, `when: manual`, hidden
   `.jobs`) live in `pkg/gitlab/test-fixtures/jobs/`. **Keep the fixtures minimal — no fictional
   deploy/dind jobs.**
 - `templates/glab-docs.yml` — the published GitLab CI/CD component that runs the

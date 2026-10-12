@@ -101,7 +101,8 @@ empty to omit it) sits at the top, and each template gets its own `##` section (
 deeper than a standalone README), with a single version footer for the whole file.
 `--component-to-generate` still works against individual files, but if it selects only some
 members of a combined group the whole group is (re)written together, so the shared file is never
-left with only a partial set of sections.
+left with only a partial set of sections. See
+[example-components/combined](example-components/combined/templates/README.md).
 
 A component's `include: - local: ...` entries that resolve to another documented component are
 turned into links in its Includes table - an in-page `#anchor` when both share a combined README,
@@ -202,6 +203,65 @@ spec:
 - `# @section -- <name>` groups the input under a sub-heading.
 - `# @default -- <text>` overrides the rendered default.
 - `# @ignore` on a key drops it from the tables.
+- `# @raw` keeps the line breaks of the following comment lines instead of joining them with
+  spaces (see below).
+
+### Adding your own content with `@raw`
+
+Use `# @raw` in the file's leading `# --` description to put your own Markdown into the README:
+headings, lists, code blocks, notes. Every comment line after `@raw` is copied as-is, with only the
+leading `#` and one space removed, and a bare `#` becomes an empty line:
+
+```yaml
+# -- Deploys the application to Kubernetes.
+# @raw
+#
+# ## Prerequisites
+#
+# - a `KUBECONFIG` CI/CD variable (type _File_)
+# - a `deploy` stage in the calling pipeline
+#
+# ```yaml
+# stages: [build, deploy]
+# ```
+spec:
+  inputs:
+    ...
+```
+
+renders right below the `# <name>` heading:
+
+````markdown
+# deploy
+
+Deploys the application to Kubernetes.
+
+## Prerequisites
+
+- a `KUBECONFIG` CI/CD variable (type _File_)
+- a `deploy` stage in the calling pipeline
+
+```yaml
+stages: [build, deploy]
+```
+
+## Usage
+...
+````
+
+Notes:
+
+- `@raw` goes after the `# --` line. Lines between the two are still joined with spaces.
+- Any further indentation after the `#` and its space is kept, so nested lists and indented code work.
+- `@default`, `@section` and `@notationType` lines are still read as annotations, not copied.
+- Only use `@raw` in the file description. On an input, variable or job it puts line breaks into
+  a table cell, which breaks the table. Use an inline `<br>` there instead.
+- For content that doesn't fit into a comment (extra sections, badges, a different order), use a
+  `README.md.gotmpl` (see [Templates](#templates)).
+
+For a complete example, see
+[example-components/raw-description](example-components/raw-description/templates/yaml-lint.yml)
+and [the README it produces](example-components/raw-description/templates/README.md).
 
 ## Templates
 
@@ -221,6 +281,46 @@ Built-in sub-templates:
 | `pipeline.jobsSection` / `pipeline.jobsTable` | the Jobs table |
 | `pipeline.includesSection` / `pipeline.includesTable` | the `include:` table |
 | `glab-docs.versionFooter` | autogeneration footer (suppress with `--skip-version-footer`) |
+
+A custom template can mix these sub-templates with your own Markdown, for example:
+
+```gotemplate
+{{ template "pipeline.header" . }}
+
+{{ template "pipeline.description" . }}
+
+{{ template "pipeline.usageSection" . }}
+
+## Configuration
+
+Your own text, placed between the generated sections.
+
+{{ template "pipeline.inputsSection" . }}
+
+{{ template "glab-docs.versionFooter" . }}
+```
+
+See [example-components/custom-template](example-components/custom-template/templates/README.md.gotmpl)
+for a full template and [its output](example-components/custom-template/templates/README.md).
+
+## Examples
+
+[`example-components/`](example-components) contains sample components together with the
+`README.md` that `glab-docs` generates for each of them:
+
+| Example | Shows |
+|---------|-------|
+| [build-image](example-components/build-image/templates/) | `spec:inputs:` with native `description` / `type` / `options` / `regex`, a `# --` override, `variables:` and a job |
+| [raw-description](example-components/raw-description/templates/) | `@raw` own Markdown in the file description, `@section`, `@default`, `@ignore`, `<br>` in a table cell, a hidden `.job` used by `extends:` |
+| [custom-template](example-components/custom-template/templates/) | a `README.md.gotmpl` that adds own sections around the built-in ones |
+| [combined](example-components/combined/templates/) | two flat `templates/*.yml` combined into one README, with an in-page link for a `local:` include |
+| [plain-pipeline](example-components/plain-pipeline/) | a plain `.gitlab-ci.yml` (no `spec:inputs:`) with `component:`, `project:`, `local:` and `template:` includes |
+
+To regenerate them after a change:
+
+```bash
+go run ./cmd/glab-docs --search-root . --component-prefix gitlab.com/m13tlabs/glab-docs
+```
 
 ## Strict mode
 

@@ -1,0 +1,25 @@
+{{ template "pipeline.header" . }}
+
+{{ template "pipeline.description" . }}
+
+> This README is rendered from `README.md.gotmpl`. Edit the template, not this file.
+
+{{ template "pipeline.usageSection" . }}
+
+## Configuration
+
+The rules come from a `.markdownlint-cli2.yaml` at the repository root. Without one, the
+markdownlint defaults apply.
+
+{{ template "pipeline.inputsSection" . }}
+
+{{ template "pipeline.jobsSection" . }}
+
+## Troubleshooting
+
+| Symptom | Fix |
+|---------|-----|
+| `MD013/line-length` on long tables | disable `MD013` for tables (`tables: false`) |
+| files in `node_modules/` are linted | add `"#node_modules"` to `globs` |
+
+{{ template "glab-docs.versionFooter" . }}

@@ -1,0 +1,20 @@
+# -- Lints Dockerfiles with hadolint.
+spec:
+  inputs:
+    stage:
+      default: lint
+      description: Pipeline stage the job runs in.
+    dockerfile:
+      default: Dockerfile
+      description: Path to the Dockerfile to lint.
+---
+include:
+  # -- Shares the stage setup with the ShellCheck component.
+  - local: /example-components/combined/templates/shell-lint.yml
+
+# -- Runs hadolint on the configured Dockerfile.
+dockerfile-lint:
+  image: hadolint/hadolint:latest-alpine
+  stage: $[[ inputs.stage ]]
+  script:
+    - hadolint "$[[ inputs.dockerfile ]]"
