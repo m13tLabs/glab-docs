@@ -26,8 +26,8 @@ var DefaultSearchPatterns = []string{
 	".gitlab-ci.yaml",
 }
 
-func compileSearchPatterns(patterns []string) []glob.Glob {
-	compiled := make([]glob.Glob, 0, len(patterns))
+func compileSearchPatterns(patterns []string) []*glob.Pattern {
+	compiled := make([]*glob.Pattern, 0, len(patterns))
 	for _, pattern := range patterns {
 		g, err := glob.Compile(pattern, '/')
 		if err != nil {
@@ -43,7 +43,7 @@ func compileSearchPatterns(patterns []string) []glob.Glob {
 // the compiled patterns. rootName (the base name of the search root) is prepended first, so that
 // pointing --search-root straight at a "templates" directory still lets a "templates/*.yml"
 // pattern match, and checking suffixes lets it match "some-component/templates/foo.yml" too.
-func matchesAnyPattern(relPath, rootName string, matchers []glob.Glob) bool {
+func matchesAnyPattern(relPath, rootName string, matchers []*glob.Pattern) bool {
 	segments := strings.Split(relPath, "/")
 	if rootName != "" && rootName != "." && rootName != "/" {
 		segments = append([]string{rootName}, segments...)
