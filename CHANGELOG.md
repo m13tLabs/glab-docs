@@ -1,4 +1,13 @@
 
+## [1.2.0](https://github.com/m13tLabs/glab-docs/compare/v1.1.1...v1.2.0) (2026-10-14)
+
+### Features
+
+* **Gitlab:** Allow rules as input ([20a6672](https://github.com/m13tLabs/glab-docs/commit/20a6672a6db90a194c1a68a2ae7192bd67cb76e6))
+
+
+
+
 ## [1.1.1](https://github.com/m13tLabs/renovate-config/compare/v1.1.0...v1.1.1) (2026-10-14)
 
 ### Bug Fixes
