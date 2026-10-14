@@ -96,6 +96,12 @@ func TestIncludesVersionFooter(t *testing.T) {
 }
 
 func TestCombinesFlatSiblingsIntoOneReadmeWithLinkedIncludes(t *testing.T) {
+	// The fixture directory is the project root its `local:` includes resolve against.
+	projectDir, err := filepath.Abs(filepath.Join("testdata", "combined"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("CI_PROJECT_DIR", projectDir)
 	flags := baseFlags(filepath.Join("testdata", "combined"))
 	doc := generateAndRead(t, flags, filepath.Join("testdata", "combined", "README.md"))
 

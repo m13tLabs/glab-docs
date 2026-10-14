@@ -2,6 +2,8 @@ package document
 
 import (
 	"fmt"
+	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -14,11 +16,60 @@ import (
 // search-root-relative path used as the key of the infoByFile map (e.g. "templates/build.yml").
 // It lets other components' Includes tables link to it.
 type ComponentLink struct {
-	// OutputPath is the rendered doc's path, relative to the component search root.
+	// OutputPath is the rendered doc's path, as the component's ComponentDirectory gives it
+	// (i.e. including the search root).
 	OutputPath string
 	// Anchor is the Markdown heading anchor for this component's section within OutputPath, or
 	// "" when the component has that whole output file to itself.
 	Anchor string
+}
+
+// ComponentLinks is every discovered component's ComponentLink, plus where the search root sits
+// within the project, since `local:` includes are addressed relative to the project root rather
+// than to the search root (e.g. `templates/build.yml` for a component found as "build.yml" when
+// --search-root points straight at `templates/`).
+type ComponentLinks struct {
+	// ByFile maps a component's search-root-relative path to its ComponentLink.
+	ByFile map[string]ComponentLink
+	// SearchRoot is the search root relative to ProjectDir, slash-separated ("." when they're
+	// the same directory).
+	SearchRoot string
+	// ProjectDir is the absolute project root `local:` includes resolve against, used to check
+	// that an included file that isn't itself a documented component exists before linking to
+	// it. Empty disables those links.
+	ProjectDir string
+}
+
+// NewComponentLinks returns the ComponentLinks for byFile, with the search root placed within
+// projectDir. When the search root can't be placed inside projectDir, `local:` include paths are
+// matched against the search-root-relative keys as-is and undocumented files aren't linked.
+func NewComponentLinks(byFile map[string]ComponentLink, searchRoot, projectDir string) ComponentLinks {
+	links := ComponentLinks{ByFile: byFile, SearchRoot: "."}
+	absSearchRoot, err := realAbsPath(searchRoot)
+	if err != nil {
+		return links
+	}
+	absProjectDir, err := realAbsPath(projectDir)
+	if err != nil {
+		return links
+	}
+	rel, err := filepath.Rel(absProjectDir, absSearchRoot)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return links
+	}
+	links.SearchRoot = filepath.ToSlash(rel)
+	links.ProjectDir = absProjectDir
+	return links
+}
+
+// realAbsPath makes path absolute with symlinks resolved, so e.g. a search root under macOS'
+// /tmp and a git toplevel reported as /private/tmp still compare equal.
+func realAbsPath(p string) (string, error) {
+	abs, err := filepath.Abs(p)
+	if err != nil {
+		return "", err
+	}
+	return filepath.EvalSymlinks(abs)
 }
 
 // GroupComponentsByOutput buckets components by the output file their ComponentDirectory
@@ -41,7 +92,7 @@ func GroupComponentsByOutput(infoByFile map[string]gitlab.ComponentDocumentation
 }
 
 // BuildComponentLinks resolves where every component in groups will end up, for Includes tables
-// to link to.
+// to link to. The result is keyed like infoByFile, by search-root-relative path.
 func BuildComponentLinks(infoByFile map[string]gitlab.ComponentDocumentationInfo, groups map[string][]string) map[string]ComponentLink {
 	links := make(map[string]ComponentLink, len(infoByFile))
 	for outputPath, relFiles := range groups {
@@ -68,28 +119,39 @@ func markdownAnchor(name string) string {
 	return s
 }
 
-// resolveIncludeLink returns the relative link (with a "#anchor" suffix when the target shares a
-// combined doc with something else) that fromRelFile's Includes table should use to point at a
-// `local:` include item, or "" when the item isn't a local include or doesn't match a discovered
-// component (an include of a file this tool doesn't document, or a `component:`/`project:`/
-// `remote:` include, which can't be resolved to a local path).
-func resolveIncludeLink(fromRelFile string, item gitlab.IncludeItem, links map[string]ComponentLink) string {
+// resolveIncludeLink returns the relative link that fromRelFile's Includes table should use to
+// point at a `local:` include item: to the included component's documentation (with a "#anchor"
+// suffix when the target shares a combined doc with something else) when it is a discovered
+// component, otherwise straight to the included file when it exists in the project (e.g. a
+// helper file outside the search root). It returns "" for a self-include, a file that can't be
+// found, a wildcard or variable path, and any non-`local:` include, which can't be resolved to a
+// local path.
+func resolveIncludeLink(fromRelFile string, item gitlab.IncludeItem, links ComponentLinks) string {
 	if item.Kind != "local" {
 		return ""
 	}
+	from, ok := links.ByFile[fromRelFile]
+	if !ok {
+		return ""
+	}
 
-	targetRelFile := filepath.ToSlash(strings.TrimPrefix(item.Location, "/"))
+	// `local:` paths are relative to the project root; map them onto the search root.
+	projectRelFile := path.Clean(filepath.ToSlash(strings.TrimPrefix(item.Location, "/")))
+	targetRelFile := projectRelFile
+	if links.SearchRoot != "." {
+		var found bool
+		targetRelFile, found = strings.CutPrefix(projectRelFile, links.SearchRoot+"/")
+		if !found {
+			targetRelFile = ""
+		}
+	}
 	if targetRelFile == fromRelFile {
 		return ""
 	}
 
-	target, ok := links[targetRelFile]
+	target, ok := links.ByFile[targetRelFile]
 	if !ok {
-		return ""
-	}
-	from, ok := links[fromRelFile]
-	if !ok {
-		return ""
+		return resolveIncludedFileLink(filepath.Dir(from.OutputPath), projectRelFile, links.ProjectDir)
 	}
 
 	if from.OutputPath == target.OutputPath {
@@ -108,6 +170,28 @@ func resolveIncludeLink(fromRelFile string, item gitlab.IncludeItem, links map[s
 		rel += "#" + target.Anchor
 	}
 	return rel
+}
+
+// resolveIncludedFileLink returns the link from the doc in fromDir to the included file itself
+// (relative to projectDir), or "" when projectDir is unknown, the path is a wildcard or holds a
+// variable / input interpolation, or no such file exists.
+func resolveIncludedFileLink(fromDir, projectRelFile, projectDir string) string {
+	if projectDir == "" || strings.ContainsAny(projectRelFile, "*?[$") || strings.HasPrefix(projectRelFile, "../") {
+		return ""
+	}
+	targetFile := filepath.Join(projectDir, filepath.FromSlash(projectRelFile))
+	if stat, err := os.Stat(targetFile); err != nil || stat.IsDir() {
+		return ""
+	}
+	absFromDir, err := realAbsPath(fromDir)
+	if err != nil {
+		return ""
+	}
+	rel, err := filepath.Rel(absFromDir, targetFile)
+	if err != nil {
+		return ""
+	}
+	return filepath.ToSlash(rel)
 }
 
 // ciServerFQDNPlaceholder is the predefined GitLab CI/CD variable authors commonly hardcode at

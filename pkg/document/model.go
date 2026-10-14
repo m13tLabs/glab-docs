@@ -159,7 +159,7 @@ func getComponentTemplateData(
 	relFile string,
 	glabDocsVersion, componentPrefix string,
 	skipVersionFooter bool,
-	links map[string]ComponentLink,
+	links ComponentLinks,
 	headingLevel int,
 ) (componentTemplateData, error) {
 	inputRows, err := getInputRows(info.SpecInputs, info.InputDescriptions)
@@ -194,7 +194,7 @@ func getComponentTemplateData(
 	}, nil
 }
 
-func getIncludeRows(relFile string, items []gitlab.IncludeItem, links map[string]ComponentLink) []includeRow {
+func getIncludeRows(relFile string, items []gitlab.IncludeItem, links ComponentLinks) []includeRow {
 	serverURL := strings.TrimRight(viper.GetString("gitlab-server-url"), "/")
 
 	rows := make([]includeRow, 0, len(items))

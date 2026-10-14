@@ -208,7 +208,11 @@ func writeDocumentation(componentSearchRoot string, infoByFile map[string]gitlab
 	log.Debugf("Rendering from optional template files [%s]", strings.Join(templateFiles, ", "))
 
 	allGroups := document.GroupComponentsByOutput(infoByFile, outputFileName)
-	links := document.BuildComponentLinks(infoByFile, allGroups)
+	links := document.NewComponentLinks(
+		document.BuildComponentLinks(infoByFile, allGroups),
+		componentSearchRoot,
+		resolveLocalIncludeRoot(componentSearchRoot),
+	)
 
 	toGenerate := getComponentsToGenerate(infoByFile)
 	toGenerate = expandToFullOutputGroups(toGenerate, infoByFile, allGroups)

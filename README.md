@@ -107,7 +107,10 @@ left with only a partial set of sections. See
 A component's `include: - local: ...` entries that resolve to another documented component are
 turned into links in its Includes table - an in-page `#anchor` when both share a combined README,
 otherwise a relative link to that component's own README (with `#anchor` if it's part of a
-combined README there too). `project:` and `component:` includes are also linked when
+combined README there too). `local:` paths are taken relative to the project root (as GitLab
+does: `$CI_PROJECT_DIR`, else the git toplevel), so this also works with a `--search-root` below
+it, e.g. `templates`. A `local:` include of a file that isn't a documented component (a helper
+file outside the search root, say) links to the file itself, if it exists. `project:` and `component:` includes are also linked when
 `--gitlab-server-url` is set (see below); `project:` links straight to the included `file:`'s blob
 at its `ref:` when one is given, otherwise to the project root; `component:` links to
 `templates/<component-name>.yml` at its `@<ref>` (or `HEAD` when unpinned) - the component

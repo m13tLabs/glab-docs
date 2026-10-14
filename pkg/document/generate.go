@@ -34,7 +34,7 @@ func renderComponentMarkdown(
 	glabDocsVersion string,
 	componentPrefix string,
 	skipVersionFooter bool,
-	links map[string]ComponentLink,
+	links ComponentLinks,
 	headingLevel int,
 ) (string, error) {
 	documentationTemplate, err := newComponentDocumentationTemplate(info, componentSearchRoot, templateFiles)
@@ -65,7 +65,7 @@ func PrintDocumentation(
 	glabDocsVersion string,
 	componentPrefix string,
 	skipVersionFooter bool,
-	links map[string]ComponentLink,
+	links ComponentLinks,
 ) {
 	log.Infof("Generating README documentation for %s", info.SourceFile)
 
@@ -106,7 +106,7 @@ func PrintCombinedDocumentation(
 	glabDocsVersion string,
 	componentPrefixFor func(gitlab.ComponentDocumentationInfo) string,
 	skipVersionFooter bool,
-	links map[string]ComponentLink,
+	links ComponentLinks,
 	title string,
 ) {
 	log.Infof("Generating combined README documentation for [%s] in %s", strings.Join(relFiles, ", "), componentDirectory)

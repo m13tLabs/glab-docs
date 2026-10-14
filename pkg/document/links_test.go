@@ -1,6 +1,8 @@
 package document
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/spf13/viper"
@@ -51,11 +53,11 @@ func TestBuildComponentLinks(t *testing.T) {
 }
 
 func TestResolveIncludeLink(t *testing.T) {
-	links := map[string]ComponentLink{
+	links := ComponentLinks{SearchRoot: ".", ByFile: map[string]ComponentLink{
 		"templates/build.yml":         {OutputPath: "templates/README.md", Anchor: "build"},
 		"templates/lint.yml":          {OutputPath: "templates/README.md", Anchor: "lint"},
 		"templates/scan/template.yml": {OutputPath: "templates/scan/README.md", Anchor: ""},
-	}
+	}}
 
 	t.Run("same combined doc links to an anchor", func(t *testing.T) {
 		link := resolveIncludeLink("templates/build.yml", gitlab.IncludeItem{Kind: "local", Location: "templates/lint.yml"}, links)
@@ -68,10 +70,10 @@ func TestResolveIncludeLink(t *testing.T) {
 	})
 
 	t.Run("different doc with a standalone target has no anchor", func(t *testing.T) {
-		otherLinks := map[string]ComponentLink{
+		otherLinks := ComponentLinks{SearchRoot: ".", ByFile: map[string]ComponentLink{
 			"templates/build.yml":         {OutputPath: "templates/README.md", Anchor: ""},
 			"templates/scan/template.yml": {OutputPath: "templates/scan/README.md", Anchor: ""},
-		}
+		}}
 		link := resolveIncludeLink("templates/scan/template.yml", gitlab.IncludeItem{Kind: "local", Location: "templates/build.yml"}, otherLinks)
 		assert.Equal(t, "../README.md", link)
 	})
@@ -95,6 +97,64 @@ func TestResolveIncludeLink(t *testing.T) {
 		link := resolveIncludeLink("templates/build.yml", gitlab.IncludeItem{Kind: "local", Location: "templates/build.yml"}, links)
 		assert.Equal(t, "", link)
 	})
+}
+
+// TestResolveIncludeLinkSearchRootBelowProject covers --search-root pointing below the project
+// root (e.g. straight at `templates/`): component keys are then search-root-relative while
+// `local:` includes stay project-root-relative, and helper files outside the search root are
+// linked directly.
+func TestResolveIncludeLinkSearchRootBelowProject(t *testing.T) {
+	projectDir := t.TempDir()
+	for _, file := range []string{"templates/build.yml", "templates/lint.yml", ".gitlab-ci/include.yml"} {
+		writeFile(t, filepath.Join(projectDir, file), "{}\n")
+	}
+	t.Chdir(projectDir)
+
+	links := NewComponentLinks(map[string]ComponentLink{
+		"build.yml": {OutputPath: "templates/README.md", Anchor: "build"},
+		"lint.yml":  {OutputPath: "templates/README.md", Anchor: "lint"},
+	}, "templates", projectDir)
+	assert.Equal(t, "templates", links.SearchRoot)
+
+	t.Run("project-root-relative include of a sibling component links to its anchor", func(t *testing.T) {
+		link := resolveIncludeLink("build.yml", gitlab.IncludeItem{Kind: "local", Location: "templates/lint.yml"}, links)
+		assert.Equal(t, "#lint", link)
+	})
+
+	t.Run("self-include is left alone", func(t *testing.T) {
+		link := resolveIncludeLink("build.yml", gitlab.IncludeItem{Kind: "local", Location: "/templates/build.yml"}, links)
+		assert.Equal(t, "", link)
+	})
+
+	t.Run("undocumented file outside the search root links to the file itself", func(t *testing.T) {
+		link := resolveIncludeLink("build.yml", gitlab.IncludeItem{Kind: "local", Location: ".gitlab-ci/include.yml"}, links)
+		assert.Equal(t, "../.gitlab-ci/include.yml", link)
+	})
+
+	t.Run("missing, wildcard and interpolated paths are left alone", func(t *testing.T) {
+		for _, location := range []string{".gitlab-ci/missing.yml", ".gitlab-ci/*.yml", "$[[ inputs.file ]]", "../outside.yml"} {
+			link := resolveIncludeLink("build.yml", gitlab.IncludeItem{Kind: "local", Location: location}, links)
+			assert.Equal(t, "", link, location)
+		}
+	})
+
+	t.Run("search root outside the project falls back to matching include paths as-is", func(t *testing.T) {
+		outside := NewComponentLinks(links.ByFile, "templates", t.TempDir())
+		assert.Equal(t, ".", outside.SearchRoot)
+		assert.Equal(t, "", outside.ProjectDir)
+		assert.Equal(t, "#lint", resolveIncludeLink("build.yml", gitlab.IncludeItem{Kind: "local", Location: "lint.yml"}, outside))
+		assert.Equal(t, "", resolveIncludeLink("build.yml", gitlab.IncludeItem{Kind: "local", Location: ".gitlab-ci/include.yml"}, outside))
+	})
+}
+
+func writeFile(t *testing.T, file, content string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(file, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestMarkdownAnchor(t *testing.T) {
@@ -229,10 +289,10 @@ func TestGetIncludeRows(t *testing.T) {
 		{Kind: "component", Location: "$CI_SERVER_FQDN/infra/jobs/gitlab-components/glab-docs/update-docs", Ref: "v0.5.0"},
 		{Kind: "remote", Location: "https://example.com/some.yml"},
 	}
-	links := map[string]ComponentLink{
+	links := ComponentLinks{SearchRoot: ".", ByFile: map[string]ComponentLink{
 		"templates/build.yml": {OutputPath: "templates/README.md", Anchor: "build"},
 		"templates/lint.yml":  {OutputPath: "templates/README.md", Anchor: "lint"},
-	}
+	}}
 
 	t.Run("without a server url, only local includes are linked", func(t *testing.T) {
 		setGitlabServerURL(t, "")
