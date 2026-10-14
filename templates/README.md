@@ -14,6 +14,7 @@ include:
       commit-author-email: glab-docs@noreply.$CI_SERVER_HOST
       commit-author-name: glab-docs
       commit-message: docs: regenerate glab-docs output
+      commit-push-token: $CI_JOB_TOKEN
       component-prefix: ""
       extra-args: ""
       gitlab-server-url: $CI_SERVER_URL
@@ -21,13 +22,13 @@ include:
       job-name: glab-docs
       mode: check
       output-file: README.md
-      commit-push-token: $CI_JOB_TOKEN
-      search-pattern: ""
+      rules: [{"if":"$CI_PIPELINE_SOURCE == 'merge_request_event'","when":"never"},{"if":"$FORCE_PIPELINEDOCS_UPDATE"},{"if":"$GLAB_DOCS_SEARCH_ROOT == '.'"},{"changes":["$GLAB_DOCS_SEARCH_ROOT/**/*"]}]
+      search-pattern: *.yml
       search-root: .
       stage: test
       strict: false
       template-files: README.md.gotmpl
-      version: 1.0.0
+      version: 1.1.0
 ```
 
 ## Inputs
@@ -40,6 +41,7 @@ include:
 | commit-author-email | string | `glab-docs@noreply.$CI_SERVER_HOST` |  | Author and committer email of the docs commit. |
 | commit-author-name | string | `glab-docs` |  | Author and committer name of the docs commit. |
 | commit-message | string | `docs: regenerate glab-docs output` |  | Message of the commit created when `commit` is enabled. The push uses `-o ci.skip`, so it doesn't start a new pipeline. |
+| commit-push-token | string | `$CI_JOB_TOKEN` |  | Token used to push the docs commit, as a CI/CD variable reference. The default job token needs "Allow Git push requests to the repository" enabled under Settings > CI/CD > Job token permissions. Otherwise pass a masked variable holding a project access token with `write_repository`; don't pass the token itself. |
 | component-prefix | string | _none_ |  | Address prefix override for the generated include snippet (`--component-prefix`). Empty resolves the project path automatically (from `$CI_PROJECT_PATH`) behind a literal `$CI_SERVER_FQDN` placeholder. |
 | extra-args | string | _none_ |  | Extra raw arguments appended to the glab-docs command. |
 | gitlab-server-url | string | `$CI_SERVER_URL` |  | GitLab server base URL used to resolve `$CI_SERVER_FQDN` in documented `component:` includes and link them to their source project (`--gitlab-server-url`). |
@@ -47,17 +49,17 @@ include:
 | job-name | string | `glab-docs` |  | Name of the generated job. |
 | mode | string | `check` | `check`, `generate` | `check` fails the job when the committed docs are stale; `generate` writes them (and commits them when `commit` is enabled). |
 | output-file | string | `README.md` |  | Generated file name passed to `--output-file`. |
-| commit-push-token | string | `$CI_JOB_TOKEN` |  | Token used to push the docs commit, as a CI/CD variable reference. The default job token needs "Allow Git push requests to the repository" enabled under Settings > CI/CD > Job token permissions. Otherwise pass a masked variable holding a project access token with `write_repository`; don't pass the token itself. |
-| search-pattern | string | _none_ |  | Comma-separated `--search-pattern` globs. Empty keeps the built-in defaults. |
+| rules | array | `[{"if":"$CI_PIPELINE_SOURCE == 'merge_request_event'","when":"never"},{"if":"$FORCE_PIPELINEDOCS_UPDATE"},{"if":"$GLAB_DOCS_SEARCH_ROOT == '.'"},{"changes":["$GLAB_DOCS_SEARCH_ROOT/**/*"]}]` |  | Job `rules`. The default skips merge request pipelines and runs only when files under `search-root` (available as `$GLAB_DOCS_SEARCH_ROOT`) changed (always for `.`), or when `$FORCE_PIPELINEDOCS_UPDATE` is set. |
+| search-pattern | string | `*.yml` |  | Comma-separated `--search-pattern` globs. Empty keeps the built-in defaults. |
 | search-root | string | `.` |  | Directory glab-docs searches for CI YAML files (`--search-root`). |
 | stage | string | `test` |  | Pipeline stage the generated job runs in. |
 | strict | boolean | `false` |  | Fail on undocumented inputs / variables (adds `--documentation-strict-mode`). |
 | template-files | string | `README.md.gotmpl` |  | Template file name passed to `--template-files`. |
-| version | string | `1.0.0` |  | glab-docs container image tag. |
+| version | string | `1.1.0` |  | glab-docs container image tag. |
 
 ## Jobs
 
 | Job | Stage | When | Needs | Description |
 |-----|-------|------|-------|-------------|
-| `$[[ inputs.job-name ]]` | `$[[ inputs.stage ]]` |  |  |  |
+| `$[[ inputs.job-name ]]` | `$[[ inputs.stage ]]` | `rules` |  |  |
 

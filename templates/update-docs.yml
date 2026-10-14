@@ -14,7 +14,7 @@ spec:
       default: .
       description: Directory glab-docs searches for CI YAML files (`--search-root`).
     search-pattern:
-      default: ""
+      default: "*.yml"
       description: Comma-separated `--search-pattern` globs. Empty keeps the built-in defaults.
     component-prefix:
       default: ""
@@ -22,6 +22,19 @@ spec:
     gitlab-server-url:
       default: $CI_SERVER_URL
       description: GitLab server base URL used to resolve `$CI_SERVER_FQDN` in documented `component:` includes and link them to their source project (`--gitlab-server-url`).
+    rules:
+      type: array
+      default:
+        # prevent extra MR pipeline
+        - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+          when: never
+        # allow to enforce 
+        - if: $FORCE_PIPELINEDOCS_UPDATE
+        # the whole repo is documented, so any change is relevant
+        - if: $GLAB_DOCS_SEARCH_ROOT == '.'
+        - changes:
+            - $GLAB_DOCS_SEARCH_ROOT/**/*
+      description: Job `rules`. The default skips merge request pipelines and runs only when files under `search-root` (available as `$GLAB_DOCS_SEARCH_ROOT`) changed (always for `.`), or when `$FORCE_PIPELINEDOCS_UPDATE` is set.
     before-script:
       type: array
       default:
@@ -81,9 +94,11 @@ spec:
   image:
     name: "$[[ inputs.image ]]:$[[ inputs.version ]]"
     entrypoint: [""]
+  rules: $[[ inputs.rules ]]
   allow_failure: $[[ inputs.allow-failure ]]
   variables:
     GLAB_DOCS_MODE: $[[ inputs.mode ]]
+    GLAB_DOCS_SEARCH_ROOT: "$[[ inputs.search-root ]]"
     GLAB_DOCS_COMMIT: "$[[ inputs.commit ]]"
     GLAB_DOCS_COMMIT_MESSAGE: "$[[ inputs.commit-message ]]"
     GLAB_DOCS_OUTPUT_FILE: "$[[ inputs.output-file ]]"
