@@ -1,4 +1,29 @@
 
+## [1.1.1](https://github.com/m13tLabs/renovate-config/compare/v1.1.0...v1.1.1) (2026-10-14)
+
+### Bug Fixes
+
+* **deps:** Update module github.com/gobwas/glob to v1 ([2017d6b](https://github.com/m13tLabs/renovate-config/commit/2017d6bdfe0f5090fea7c8b8f90370414bc91cee))
+
+* Adopt to latest glob ([9357ba8](https://github.com/m13tLabs/renovate-config/commit/9357ba8c381a1f8e391e014a887dbdd2e7d84f75))
+
+* Resolve local refs, to ([c9a06bf](https://github.com/m13tLabs/renovate-config/commit/c9a06bff678367efbb378dbd5ec78cc2458a836f))
+
+
+
+### Dependency Updates
+
+* **deps:** Update goreleaser/goreleaser-action action to v7.3.0 ([9c7802b](https://github.com/m13tLabs/renovate-config/commit/9c7802b5e84778875fd1c1f92d8bcebc28c1d359))
+
+
+
+### Documentation
+
+* Add more examples and usage instructions ([9248a67](https://github.com/m13tLabs/renovate-config/commit/9248a675c3b7152fcbce72521e8d676f9f5c4d2c))
+
+
+
+
 ## [1.1.0](https://github.com/m13tLabs/renovate-config/compare/v1.0.0...v1.1.0) (2026-10-08)
 
 ### Bug Fixes
