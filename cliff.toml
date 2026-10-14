@@ -2,7 +2,7 @@
 header = ""
 body = """
 {% if version %}\
-## [{{ version | trim_start_matches(pat="v") }}](https://github.com/m13tLabs/renovate-config/compare/{{ previous.version }}...{{ version }}) ({{ timestamp | date(format="%Y-%m-%d") }})
+## [{{ version | trim_start_matches(pat="v") }}](https://github.com/m13tLabs/glab-docs/compare/{{ previous.version }}...{{ version }}) ({{ timestamp | date(format="%Y-%m-%d") }})
 {% else %}\
 ## [Unreleased]
 {% endif %}\
@@ -12,7 +12,7 @@ body = """
 
 {% for commit in commits %}\
 * {% if commit.scope %}**{{ commit.scope }}:** {% endif %}{{ commit.message | upper_first }} \
-([{{ commit.id | truncate(length=7, end="") }}](https://github.com/m13tLabs/renovate-config/commit/{{ commit.id }}))\
+([{{ commit.id | truncate(length=7, end="") }}](https://github.com/m13tLabs/glab-docs/commit/{{ commit.id }}))\
 {% if commit.breaking %} **BREAKING CHANGE**{% endif %}
 
 {% endfor %}

@@ -169,7 +169,7 @@ jobs:
 
           touch CHANGELOG.md
           git-cliff --config cliff.toml --tag "v${{ steps.version.outputs.release_version }}" --unreleased --prepend CHANGELOG.md
-          git-cliff --config cliff.toml --tag "v${{ steps.version.outputs.release_version }}" --latest --strip header > RELEASE_NOTES.md
+          git-cliff --config cliff.toml --tag "v${{ steps.version.outputs.release_version }}" --unreleased --strip header > RELEASE_NOTES.md
 
           git add CHANGELOG.md
           git commit -m "chore: Changelog for Release ${{ steps.version.outputs.release_version }}"
